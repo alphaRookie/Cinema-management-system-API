@@ -4,6 +4,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAdminUser
 
 from .models import Movie, Hall, Showtime, Seat
 from .serializers import MovieSerializer, HallSerializer, HallReadonlySerializer, ShowtimeSerializer, ShowtimeReadonlySerializer, SeatSerializer
@@ -14,7 +15,9 @@ from django.shortcuts import get_object_or_404
 
 
 class MovieListAPIView(APIView):  # Request handler(HTTP) ; frontend called HTTP to ask the data from here
-    def get(self, request): # when someone send a GET request from here....
+    permission_classes = [IsAuthenticatedOrReadOnly] # anyone can GET, and only logged-in admin can POST, PATCH, DELETE
+
+    def get(self, request): 
         movies = Movie.objects.all() # this is like: SELECT * FROM Movie and turn into obj
         serializer = MovieSerializer(movies, many=True) # return Queryset (list of many models rows) to JSON
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -30,6 +33,8 @@ class MovieListAPIView(APIView):  # Request handler(HTTP) ; frontend called HTTP
     
 
 class MovieDetailAPIView(APIView):
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
     def get(self, request, pk):
         movie = get_object_or_404(Movie, pk=pk) 
         serializer = MovieSerializer(movie) # no need `many=True` bcoz return single obj (Model to JSON)
@@ -53,6 +58,8 @@ class MovieDetailAPIView(APIView):
 
 
 class HallListAPIView(APIView):
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
     def get(self, request):
         halls = Hall.objects.all()
         serializer = HallReadonlySerializer(halls, many=True) 
@@ -66,6 +73,8 @@ class HallListAPIView(APIView):
     
 
 class HallDetailAPIView(APIView):
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
     def get(self, request, pk):
         hall = get_object_or_404(Hall, pk=pk)
         serializer = HallReadonlySerializer(hall)
@@ -86,6 +95,8 @@ class HallDetailAPIView(APIView):
 
 
 class ShowtimeListAPIView(APIView):
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
     # Trip out: Get list of showtimes
     def get(self, request):
         showtimes = Showtime.objects.all()
@@ -102,6 +113,8 @@ class ShowtimeListAPIView(APIView):
     
     
 class ShowtimeDetailAPIView(APIView):
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
     def get(self, request, pk):
         showtime = get_object_or_404(Showtime, pk=pk)
         serializer = ShowtimeReadonlySerializer(showtime, context={"request":request})
@@ -122,6 +135,8 @@ class ShowtimeDetailAPIView(APIView):
 
 
 class SeatDetailAPIView(APIView):
+    permission_classes = [IsAdminUser] # user dont need to see technical seat data
+
     def get(self, request, r, c, h_id):
         seats = get_object_or_404(Seat, row_label=r, column_number=c, hall_id=h_id) # MUST match the field name
         serializer = SeatSerializer(seats)
