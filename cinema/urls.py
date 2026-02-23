@@ -21,4 +21,5 @@ from django.urls import path, include
 urlpatterns = [ # we only define prefix here, routes continues on urls in screening app
     path("admin/", admin.site.urls),
     path("screening/", include("screening.urls")), # screening/...
+    path("booking/", include("booking.urls")),
 ]

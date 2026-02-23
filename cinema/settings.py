@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'screening.apps.ScreeningConfig', # we register manually, so django can access
+    'booking.apps.BookingConfig',
     'rest_framework', # DRF
 ]
 
