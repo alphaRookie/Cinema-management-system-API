@@ -94,14 +94,14 @@ Before you start, make sure you have the following installed:
     * http://127.0.0.1:8000/booking/...
     ```
 
-**Additional: Create Admin Account:**
-    To access the "Smart Admin" panel and manage movies or halls, create a superuser:
-    ```bash
-    python manage.py createsuperuser
-    ```
-    *Follow the prompts to set your username, email, and password.*
-    
-    Access via:
-    ```bash
-    http://127.0.0.1:8000/admin/
-    ```
+**Additional: Create Admin Account**
+To access the "Smart Admin" panel and manage movies or halls, create a superuser:
+
+```bash
+python manage.py createsuperuser
+
+```
+
+*Follow the prompts to set your username, email, and password.*
+
+**Access via:** [http://127.0.0.1:8000/admin/](http://127.0.0.1:8000/admin/)
