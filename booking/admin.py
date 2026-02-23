@@ -3,6 +3,7 @@
 
 from django.contrib import admin
 from .models import Booking, Ticket, SeatLock
+from .services import BookingService
 
 @admin.register(Booking)
 class BookingAdmin(admin.ModelAdmin):
@@ -11,6 +12,10 @@ class BookingAdmin(admin.ModelAdmin):
     list_filter = ("status", "created_at")
     readonly_fields = ("created_at", "final_price")
     #search_fields = ("user__email",)
+
+    # make admin smart
+    def save_model(self, request, obj, form, change):
+        BookingService.make_booking(booking=obj if change else None, **form.cleaned_data)
 
 
 @admin.register(Ticket)
