@@ -1,4 +1,5 @@
 # Register database models here. so we can see in admin panel
+# in this domain, admin is for setting up "The stage"
 
 from django.contrib import admin
 from .models import Movie, Hall, Showtime, Seat
@@ -6,13 +7,14 @@ from .services import MovieService, HallService, ShowtimeService, SeatService
 
 @admin.register(Movie)
 class MovieAdmin(admin.ModelAdmin):
-    list_display = ("id", "title", "genre", "duration", "rating", "release_date")
+    list_display = ("id", "title", "genre", "duration", "rating", "release_date") # use tuple(unchangeable) instead of list 
     list_filter = ("genre",) # grouping by ..
     search_fields = ("title",) # search by title
     
     # This part makes admin "smart" bcoz it connects to service
     def save_model(self, request, obj, form, change):
         MovieService.save_movie(movie=obj if change else None, **form.cleaned_data)
+
 
 @admin.register(Hall)
 class HallAdmin(admin.ModelAdmin):
@@ -37,7 +39,7 @@ class ShowtimeAdmin(admin.ModelAdmin):
 
 @admin.register(Seat)
 class SeatAdmin(admin.ModelAdmin):
-    list_display = ("row_label", "column_number", "hall") # we dont define `id` here btw
+    list_display = ("id", "row_label", "column_number", "hall") 
     list_filter = ("hall",)
 
     def save_model(self, request, obj, form, change):

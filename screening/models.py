@@ -45,20 +45,17 @@ class Showtime(models.Model):
     start_at = models.DateTimeField(db_index=True) #  helps searching faster when data grow bigger (but takes more space and abit slower)
     price = models.DecimalField(max_digits=8, decimal_places=2, validators=[MinValueValidator(0)]) # always decimal for exact count !
     movie = models.ForeignKey(Movie, on_delete=models.PROTECT) # dont let it to be deleted, bcoz showtime is where all data gathers (historical data depends)
-    hall = models.ForeignKey(Hall, on_delete=models.PROTECT) 
+    hall = models.ForeignKey(Hall, on_delete=models.PROTECT) # parent cant delete himself, need to delete the child first, then parent can delete himself
     end_at = models.DateTimeField(blank=True, null=True) # autofill field (by service)
 
     def __str__(self):
-        return self.movie.title
+        return f"{self.movie.title} at {self.hall.name}"
     
-    def total_price(self, quantity): # By putting it in the Model, you make "calculator" that available everywhere in your app without writing it twice.
-        return self.price * quantity
-
 
 class Seat(models.Model):
     row_label = models.CharField(max_length=1) #, choices=[(chr(i), chr(i)) for i in range(ord("A"), ord("Z")+1)]
     column_number = models.PositiveSmallIntegerField()
-    hall = models.ForeignKey(Hall, on_delete=models.CASCADE)
+    hall = models.ForeignKey(Hall, on_delete=models.CASCADE) # when parent deleted, so the child
 
     def __str__(self): 
         return f"{self.row_label}-{self.column_number}" # makes sure the list says "A-1" (instead of: Seat object(1))
