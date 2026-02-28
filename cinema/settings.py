@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'screening.apps.ScreeningConfig', # we register manually, so django can access
     'booking.apps.BookingConfig',
+    'payment.apps.PaymentConfig',
     'rest_framework', # DRF
 ]
 
@@ -126,3 +127,16 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+
+
+from dotenv import load_dotenv
+import os
+import stripe
+
+load_dotenv() # this reads the .env file
+
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
+STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY")
+
+stripe.api_key = STRIPE_SECRET_KEY # We tell the Stripe library to use our secret key
