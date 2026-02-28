@@ -27,8 +27,14 @@ class MovieListAPIView(APIView):  # Request handler(HTTP) ; frontend called HTTP
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
-        movie = MovieService.save_movie(None, **serializer.validated_data) # we dont pass movie bcoz initially this wasnt created
-        # without **, we have to type `name=data['name']` one by one
+        movie = MovieService.save_movie(
+            movie=None,
+            title=serializer.validated_data.get("title"),
+            genre=serializer.validated_data.get("genre"),
+            duration=serializer.validated_data.get("duration"),
+            rating=serializer.validated_data.get("rating"),
+            release_date=serializer.validated_data.get("release_date"),
+        ) 
         return Response(MovieSerializer(movie).data, status=status.HTTP_201_CREATED)
     
 
@@ -47,7 +53,14 @@ class MovieDetailAPIView(APIView):
         movie = get_object_or_404(Movie, pk=pk)
         serializer = MovieSerializer(movie, data = request.data, partial=True) # enable PATCH (update some instead all)
         serializer.is_valid(raise_exception=True) # shortcut
-        updated_movie = MovieService.save_movie(movie, **serializer.validated_data) # pass movie if it exist
+        updated_movie = MovieService.save_movie(
+            movie=movie, 
+            title=serializer.validated_data.get("title"),
+            genre=serializer.validated_data.get("genre"),
+            duration=serializer.validated_data.get("duration"),
+            rating=serializer.validated_data.get("rating"),
+            release_date=serializer.validated_data.get("release_date"),
+        ) 
         return Response(MovieSerializer(updated_movie).data, status=status.HTTP_200_OK) # patch return OK, not 201
         
     def delete(self, request, pk):
@@ -68,7 +81,13 @@ class HallListAPIView(APIView):
     def post(self, request):
         serializer = HallSerializer(data = request.data)
         serializer.is_valid(raise_exception=True)
-        hall = HallService.save_hall(None, **serializer.validated_data)
+        hall = HallService.save_hall(
+            hall=None,
+            name=serializer.validated_data.get("name"),
+            seats_per_row=serializer.validated_data.get("seats_per_row"),
+            seats_per_column=serializer.validated_data.get("seats_per_column"),
+            screen_type=serializer.validated_data.get("screen_type"),
+        )
         return Response(HallSerializer(hall).data, status=status.HTTP_201_CREATED)
     
 
@@ -84,7 +103,13 @@ class HallDetailAPIView(APIView):
         hall = get_object_or_404(Hall, pk=pk) # this is like: SELECT * FROM Hall WHERE id=pk from db
         serializer = HallSerializer(hall, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        updated_hall = HallService.save_hall(hall, **serializer.validated_data)
+        updated_hall = HallService.save_hall(
+            hall=hall, 
+            name=serializer.validated_data.get("name"),
+            seats_per_row=serializer.validated_data.get("seats_per_row"),
+            seats_per_column=serializer.validated_data.get("seats_per_column"),
+            screen_type=serializer.validated_data.get("screen_type"),
+        )
         return Response(HallSerializer(updated_hall).data, status=status.HTTP_200_OK)
     
     def delete(self, request, pk):
@@ -108,7 +133,13 @@ class ShowtimeListAPIView(APIView):
         # 1.check format (serializer)
         serializer = ShowtimeSerializer(data = request.data, context={"request":request}) #takes raw material(JSON) from user and holds
         serializer.is_valid(raise_exception=True)
-        showtime = ShowtimeService.save_showtime(None, **serializer.validated_data)
+        showtime = ShowtimeService.save_showtime(
+            showtime=None,
+            movie=serializer.validated_data.get("movie"),
+            hall=serializer.validated_data.get("hall"),
+            start_at=serializer.validated_data.get("start_at"),
+            price=serializer.validated_data.get("price"),
+        )
         return Response(ShowtimeSerializer(showtime).data, status=status.HTTP_201_CREATED)# If everything succeeded, you turn the new 'showtime' object back into JSON to (show the user what was created)
     
     
@@ -124,7 +155,13 @@ class ShowtimeDetailAPIView(APIView):
         showtime = get_object_or_404(Showtime, pk=pk)
         serializer = ShowtimeSerializer(showtime, data=request.data, partial=True, context={"request":request})
         serializer.is_valid(raise_exception=True)
-        updated_showtime = ShowtimeService.save_showtime(showtime, **serializer.validated_data)
+        updated_showtime = ShowtimeService.save_showtime(
+            showtime=showtime, 
+            movie=serializer.validated_data.get("movie"),
+            hall=serializer.validated_data.get("hall"),
+            start_at=serializer.validated_data.get("start_at"),
+            price=serializer.validated_data.get("price"),
+        )
         return Response(ShowtimeSerializer(updated_showtime).data, status=status.HTTP_200_OK)
     
     def delete(self, request, pk):
@@ -146,7 +183,10 @@ class SeatDetailAPIView(APIView):
         seat = get_object_or_404(Seat, row_label=r, column_number=c, hall_id=h_id)
         serializer = SeatSerializer(seat, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        updated_seat = SeatService.update_seat(seat, **serializer.validated_data)
+        updated_seat = SeatService.update_seat(
+            seat=seat,
+            is_broken=serializer.validated_data.get("is_broken"),
+        )
         
         return Response(SeatSerializer(updated_seat).data, status=status.HTTP_200_OK)
 
