@@ -21,9 +21,14 @@ class BookingListAPIView(APIView):
         serializer = BookingSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
-        # we pass the user from the request into our service (this prevents users from booking for someone else)
-        booking = BookingService.make_booking(None, user=request.user, **serializer.validated_data)
-        
+        # DRF already turned the ID into an Object
+        booking = BookingService.make_booking(
+            booking=None, 
+            user=request.user,  # we pass the user from the request into our service (this prevents users from booking for someone else)
+            showtime=serializer.validated_data.get("showtime"),
+            quantity=serializer.validated_data.get("quantity"),
+            seat_ids=serializer.validated_data.get("seat_ids"),
+        )
         # We return the Readonly version because it shows the "seats" field
         return Response(BookingReadonlySerializer(booking).data, status=status.HTTP_201_CREATED)
     
@@ -41,11 +46,16 @@ class BookingDetailAPIView(APIView):
         serializer = BookingSerializer(booking, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         
-        # We pass the existing booking object into our service
-        updated_booking = BookingService.make_booking(booking, user=request.user, **serializer.validated_data)
+        updated_booking = BookingService.make_booking(
+            booking=booking, # We pass the existing booking object into our service (patch only)
+            user=request.user, 
+            showtime=serializer.validated_data.get("showtime"),
+            quantity=serializer.validated_data.get("quantity"),
+            seat_ids=serializer.validated_data.get("seat_ids"),
+        )
         return Response(BookingReadonlySerializer(updated_booking).data, status=status.HTTP_200_OK)
 
     def delete(self, request, pk):
         booking = get_object_or_404(Booking, pk=pk, user=request.user)
-        booking.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        BookingService.cancel_booking(booking)
+        return Response({"message": "Booking cancelled"}, status=status.HTTP_200_OK) # we change status not delete. so user can see it in their history later

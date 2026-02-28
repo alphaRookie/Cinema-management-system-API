@@ -1,7 +1,6 @@
 from rest_framework import serializers
 from rest_framework.serializers import ValidationError
-from .models import Booking
-from screening.models import Showtime
+from .models import Booking, Ticket, SeatLock
 
 class BookingBaseSerializer(serializers.ModelSerializer):
     class Meta:
@@ -16,7 +15,12 @@ class BookingReadonlySerializer(BookingBaseSerializer):
         fields = BookingBaseSerializer.Meta.fields + ["seats"]
 
     def get_seats(self, obj):
-        return obj.ticket_set.values_list("seat_id", flat=True) # This shows the list of seat IDs for the user to see
+        # If the booking is already CONFIRMED, look in the Ticket table (sacred)
+        if obj.status == "CONFIRMED":
+            return Ticket.objects.filter(booking=obj).values_list("seat_id", flat=True) # This shows the list of seat IDs for the user to see
+        
+        # otherwise (if still pending) look at Seatlock table
+        return SeatLock.objects.filter(user=obj.user, showtime=obj.showtime).values_list("seat_id", flat=True)
 
 
 class BookingSerializer(BookingBaseSerializer):
