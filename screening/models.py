@@ -56,6 +56,7 @@ class Seat(models.Model):
     row_label = models.CharField(max_length=1) #, choices=[(chr(i), chr(i)) for i in range(ord("A"), ord("Z")+1)]
     column_number = models.PositiveSmallIntegerField()
     hall = models.ForeignKey(Hall, on_delete=models.CASCADE) # when parent deleted, so the child
+    is_broken = models.BooleanField(default=False)
 
     def __str__(self): 
         return f"{self.row_label}-{self.column_number}" # makes sure the list says "A-1" (instead of: Seat object(1))

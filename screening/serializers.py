@@ -24,8 +24,8 @@ class MovieSerializer(serializers.ModelSerializer):
 class SeatSerializer(serializers.ModelSerializer):
     class Meta:
         model = Seat
-        fields = ["id", "row_label", "column_number", "hall"] 
-        read_only_fields = ["id"]
+        fields = ["id", "row_label", "column_number", "hall", "is_broken"] 
+        read_only_fields = ["id", "row_label", "column_number", "hall"]
 
 
 
@@ -43,7 +43,7 @@ class HallReadonlySerializer(HallBaseSerializer):
         fields = HallBaseSerializer.Meta.fields + ["total_seats"] # add what needed or dont add at all
 
     def get_total_seats(self, obj): # looping through halls, calling each one 'obj'
-        return obj.seat_set.count() # when at halls A, return the count from hall "A". and so on..
+        return Seat.objects.filter(hall=obj).count() # when at halls A, return the count from hall "A". and so on..
     
 
 class HallSerializer(HallBaseSerializer):
