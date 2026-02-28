@@ -1,6 +1,6 @@
 # Cinema Management System (Modular Backend) 
 
-> **Status:** On-going Development (Currently finishing App 2; to be continue to App 3 soon)
+> **Status:** On-going Development 
 
 This is a cinema booking backend built with Django and Django REST Framework. I built this using a Domain-Driven style, which means the code is organized based on its business functions. This makes the project much easier to scale and maintain.
 
@@ -25,26 +25,28 @@ This is a cinema booking backend built with Django and Django REST Framework. I 
 * **Seat lock system** (10-minute reservation window and Prevents double booking)
 * **Price freeze** (locking the price at the moment of purchase, future price change won't affect the history)
 * **Clear separation:** SeatLock (temporary) vs Ticket (ownership)
+* **Planning to use Celery and Redis:** to automatically release expired seats back to the public if a user doesn't finish their payment
 
 ---
 
-## App 3: Identity Domain (Soon)
+## App 3: Payment Domain 
+
+**Financial Record-Keeping & Payment Gateway Integration.**
+
+* **Gateway Integration (Stripe):** Uses the Stripe API to securely process credit cards without storing sensitive data on our local database.
+* **Transaction Lifecycle:** Manages the flow from `INITIALIZED` → `SUCCESS` or `FAILED`.
+* **Service-Level Coordination:** Instead of just "Signals," the Payment Service directly coordinates with the `BookingService` to confirm seats only after the bank confirms the funds.
+* **Immutable Audit Trail:** Creates a permanent history of `Transaction IDs`, `Amounts`, and `Currency` for financial reporting and future refund processing.
+
+---
+
+## App 4: Identity Domain 
 
 **Unified user & authentication system.**
 
 * **Identity Isolation:** Keeps personal user data and contact info separate from the cinema business logic.
 * **Secure Auth:** Handles login, registration, and permission levels (Admin vs Customer).
 * **Activity Tracking:** Connects users to their specific booking history via secure Foreign Key relationships
-
----
-
-## App 4: Transaction Domain (Soon)
-
-**Financial audit & payment gateway.**
-
-* **Payment Isolation:** Dedicated space for money-related logic (refunds, retries, and bank communication).
-* **The Handshake:** Uses a "Signal" system to notify the Booking Domain once a payment is successful.
-* **Audit Trail:** Maintains a permanent, unchangeable record of every financial transaction for business reporting.
 
 ---
 
