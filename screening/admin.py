@@ -2,6 +2,7 @@
 # in this domain, admin is for setting up "The stage"
 
 from django.contrib import admin
+from django.http.request import HttpRequest
 from .models import Movie, Hall, Showtime, Seat
 from .services import MovieService, HallService, ShowtimeService, SeatService
 
@@ -44,3 +45,10 @@ class SeatAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         SeatService.update_seat(seat=obj, **form.cleaned_data)
+
+    # Hide these permissions, because already handled by hall
+    def has_add_permission(self, request):
+        return False
+    
+    def has_delete_permission(self, request):
+        return False
