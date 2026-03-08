@@ -12,8 +12,7 @@ class Booking(models.Model):
         EXPIRED = "EXPIRED", _("Expired")
 
     showtime = models.ForeignKey("screening.Showtime", on_delete=models.CASCADE)
-    #user = models.ForeignKey("account.blabla", on_delete=models.CASCADE)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE) # pake sementara sebelum buat account
+    user = models.ForeignKey("identity.User", on_delete=models.CASCADE)
     quantity = models.PositiveSmallIntegerField(
         choices=[(q, q) for q in range(1, 11)],
         default=1, 
@@ -42,8 +41,7 @@ class SeatLock(models.Model):
     """ Represents the Seat is being "On hold" (Temporary) """
     showtime = models.ForeignKey("screening.Showtime", on_delete=models.CASCADE)
     seat = models.ForeignKey("screening.Seat", on_delete=models.CASCADE)
-    #user = models.ForeignKey("account.blabla", on_delete=models.CASCADE)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE) 
+    user = models.ForeignKey("identity.User", on_delete=models.CASCADE)
     locked_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField() # make logic that deletes seatlock after 10 minutes if not paid yet
 

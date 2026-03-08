@@ -1,14 +1,11 @@
 from .models import Booking, Ticket, SeatLock
 from screening.models import Showtime, Seat
+from identity.models import User
 
 from rest_framework.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
-from django.shortcuts import get_object_or_404
 from datetime import timedelta 
-
-from django.contrib.auth import get_user_model 
-User = get_user_model() # fake user
 
 # "What stops this Booking from being allowed?" 
 class BookingService:

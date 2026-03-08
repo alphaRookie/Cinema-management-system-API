@@ -11,7 +11,7 @@ class BookingAdmin(admin.ModelAdmin):
     list_display = ("id", "showtime", "user", "status", "quantity", "created_at", "final_price")
     list_filter = ("status", "created_at")
     readonly_fields = ("created_at", "final_price")
-    #search_fields = ("user__email",)
+    search_fields = ("user__email",)
 
     # make admin smart
     def save_model(self, request, obj, form, change):
@@ -31,4 +31,4 @@ class SeatLockAdmin(admin.ModelAdmin):
     list_display = ("id", "showtime", "seat", "user", "locked_at", "expires_at")
     list_filter = ("locked_at",) # see which seats were locked in last hours, etc
     readonly_fields = ("locked_at", "expires_at")
-    #search_fields = ("user__email",)
+    search_fields = ("user__email",)
