@@ -23,4 +23,5 @@ urlpatterns = [ # we only define prefix here, routes continues on urls in screen
     path("screening/", include("screening.urls")), # screening/...
     path("booking/", include("booking.urls")),
     path("payment/", include("payment.urls")),
+    path("identity/", include("identity.urls")),
 ]

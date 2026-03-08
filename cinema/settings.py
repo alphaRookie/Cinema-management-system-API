@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'screening.apps.ScreeningConfig', # we register manually, so django can access
     'booking.apps.BookingConfig',
     'payment.apps.PaymentConfig',
+    'identity.apps.IdentityConfig',
     'rest_framework', # DRF
 ]
 
@@ -140,3 +141,8 @@ STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
 STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY")
 
 stripe.api_key = STRIPE_SECRET_KEY # We tell the Stripe library to use our secret key
+
+
+
+# Tell Django: "Don't use the default user. Use the one I made in the 'identity' app."
+AUTH_USER_MODEL = 'identity.User'
