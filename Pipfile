@@ -9,6 +9,7 @@ psycopg2 = "*"
 djangorestframework = "*"
 stripe = "*"
 python-dotenv = "*"
+djangorestframework-simplejwt = "*"
 
 [dev-packages]
 

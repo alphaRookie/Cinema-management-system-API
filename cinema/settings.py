@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'payment.apps.PaymentConfig',
     'identity.apps.IdentityConfig',
     'rest_framework', # DRF
+    'rest_framework_simplejwt.token_blacklist', # So that people can actually log out
 ]
 
 # like "app/Http/Middleware" in laravel
@@ -55,6 +56,8 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+APPEND_SLASH = False # so i dont need to write slash "/" at the end URL
 
 ROOT_URLCONF = 'cinema.urls'
 
@@ -146,3 +149,22 @@ stripe.api_key = STRIPE_SECRET_KEY # We tell the Stripe library to use our secre
 
 # Tell Django: "Don't use the default user. Use the one I made in the 'identity' app."
 AUTH_USER_MODEL = 'identity.User'
+
+
+
+# Django Rest Framework Configuration
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+}
+
+from datetime import timedelta
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60), # How long the "Key" works
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),    # How long before they must log in again
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "USER_ID_FIELD": "id", # this uses id as PK
+    "USER_ID_CLAIM": "user_id",
+}
