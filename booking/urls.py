@@ -1,8 +1,10 @@
 from django.urls import path
-from .views import BookingListAPIView, BookingDetailAPIView
+from .views import BookingAPIView, AdminBookingAPIView
 
 urlpatterns = [
-    path("", BookingListAPIView.as_view(), name="booking-list"),
-    
-    path("<int:pk>/", BookingDetailAPIView.as_view(), name="booking-detail"),
+    path("", BookingAPIView.as_view(), name="booking-list"), # booking list and post handled here
+    path("/<int:pk>", BookingAPIView.as_view(), name="booking-detail"), # booking detail and delete handled here
+
+    path("/admin", AdminBookingAPIView.as_view(), name="adm-booking-list"),
+    path("/admin/<int:pk>", AdminBookingAPIView.as_view(), name="adm-booking-detail")
 ]

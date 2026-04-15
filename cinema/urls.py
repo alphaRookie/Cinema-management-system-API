@@ -20,8 +20,8 @@ from django.urls import path, include
 
 urlpatterns = [ # we only define prefix here, routes continues on urls in screening app
     path("admin/", admin.site.urls),
-    path("screening/", include("screening.urls")), # screening/...
-    path("booking/", include("booking.urls")),
-    path("payment/", include("payment.urls")),
-    path("identity/", include("identity.urls")),
+    path("screening", include("screening.urls")), # screening/...
+    path("booking", include("booking.urls")),
+    path("payment", include("payment.urls")),
+    path("identity", include("identity.urls")),
 ]
