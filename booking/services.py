@@ -15,7 +15,8 @@ class BookingService:
         user: User | None = None, 
         showtime: Showtime | None = None, 
         quantity: int | None = None, 
-        seat_ids: list[int] | None = None
+        seat_ids: list[int] | None = None,
+        **kwargs # will recognize auto-add field
         # default all to None, so in PATCH, we can just update 1 thing and left other
     ):
 
@@ -27,7 +28,7 @@ class BookingService:
         if seat_ids is None and booking: # if seat_ids not provided, but booking field in Ticket is exist
             #"In the Seatlock table, find all rows that belong to this specific user and showtime, then tell me which Seat IDs are inside those Seatlock" then list it
             input_seat_ids = list(SeatLock.objects.filter(user=booking.user, showtime=booking.showtime).values_list("seat_id", flat=True)) 
-        else:
+        else: 
             input_seat_ids = seat_ids or [] #get the list
 
         input_quantity = quantity if quantity else (booking.quantity if booking else len(input_seat_ids)) # when admin didnt put quantity, count all selected seats
@@ -37,10 +38,10 @@ class BookingService:
 
         # Since the action is one single event, keep these 3 different logics together makes it Atomic
         # 1. Check if movie is already over or started
-        if input_showtime.end_at < timezone.now():
+        if input_showtime.end_at < timezone.now(): #if current time is after ending time
             raise ValidationError("The movie is already finished")
         
-        if input_showtime.start_at < timezone.now():
+        if input_showtime.start_at < timezone.now(): #if current time is more than starting line time
             raise ValidationError("The movie is already started")
         
 
@@ -90,7 +91,7 @@ class BookingService:
             raise ValidationError("One or more seats are on hold by someone else")
         
 
-        # if the same user has duplicate booking but havent paid yet
+        # 4. if the same user has duplicate booking but havent paid yet
         duplicate_booking = SeatLock.objects.filter(
             showtime = input_showtime,
             seat_id__in = input_seat_ids,
@@ -192,6 +193,12 @@ class BookingService:
 
         # if user intendedly cancel the ticket (that already bought) and ask for refund, set CANCELLED
         if booking.status == "CONFIRMED":
+            if booking.showtime.start_at < timezone.now():
+                raise ValidationError("Movie is already started, you can't cancel the ticket")
+            
+            if booking.showtime.end_at < timezone.now():
+                raise ValidationError("The showtime has finished")
+            
             Ticket.objects.filter(booking=booking).delete() # only delete ticket for this booking
             booking.status = "CANCELLED"
 

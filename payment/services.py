@@ -22,7 +22,7 @@ class PaymentService:
             #2. if success, save the history
             payment_record = Payment.objects.create(
                 booking = booking,
-                stripe_charge_id = intent.id, #use that 'intent' variable by access its ID to fill DB
+                stripe_charge_id = intent.id, #use that 'intent' object that sends by stripe, then grab the ID, and put to the field
                 amount = booking.final_price,
                 status = "SUCCESS"
             )

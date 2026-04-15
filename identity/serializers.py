@@ -27,6 +27,7 @@ class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ["email", "password", "phone_number", "username", "is_cinema_vip"]
+        read_only_fields = ["is_cinema_vip"]
 
     def validate_email(self, value):
         email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
@@ -48,4 +49,12 @@ class RegisterSerializer(serializers.ModelSerializer):
         except DjangoValidationError as e: # catch django list of error and raise by DRF
             raise DRFValidationError(e.message) 
         return value
+    
+
+# Focuses on displaying data
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ["id", "email", "username", "phone_number", "is_cinema_vip", "last_login"]
+        read_only_fields = ["id", "is_cinema_vip"]
 

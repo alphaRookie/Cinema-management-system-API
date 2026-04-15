@@ -30,7 +30,8 @@ class HallAdmin(admin.ModelAdmin):
 
 @admin.register(Showtime)
 class ShowtimeAdmin(admin.ModelAdmin):
-    list_display = ("id", "start_at", "price", "movie", "hall")
+    list_display = ("id", "start_at", "price", "movie", "hall", "end_at")
+    readonly_fields = ("end_at",)
     list_filter = ("hall", "movie")
     date_hierarchy = "start_at" # admin can jump by year → month → day
 
@@ -50,5 +51,3 @@ class SeatAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         return False
     
-    def has_delete_permission(self, request):
-        return False

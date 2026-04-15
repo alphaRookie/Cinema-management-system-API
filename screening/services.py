@@ -108,6 +108,7 @@ class ShowtimeService:
         hall: Hall | None=None,
         start_at: datetime | None=None,
         price: int | None=None,
+       **kwargs # will recognize auto-add field
     ):
         # prevent showtime in the same hall overlapping (DDD logic)
         # when we want to insert movie A to hall_1 at 9-11, but its overlap with movie C. so we do empty checkup to find an empty hall at that spesific time to give options to move
@@ -165,6 +166,7 @@ class ShowtimeService:
             hall=hall,
             start_at=start_at,
             price=price,
+            end_at=end_time,
         )
 
 

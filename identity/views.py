@@ -113,3 +113,21 @@ class LogoutUserAPIView(APIView):
                 "error": "Invalid token or already logged out."
             }, status=status.HTTP_400_BAD_REQUEST)
 
+
+class AdminUserAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsManager]
+
+    def get(self, request, pk=None):
+        if pk:
+            user = get_object_or_404(User, pk=pk)
+            serializer = UserSerializer(user)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        
+        users = User.objects.all().order_by("-date_joined")
+        serializer = UserSerializer(users, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+        
+    def delete(self, request, pk=None):
+        user = get_object_or_404(User, pk=pk)
+        user.delete()
+        return Response({"message": f"User {user.email} has been removed"})
