@@ -2,7 +2,7 @@
 # Good for troubleshooting, manual override, doing refund
 
 from django.contrib import admin
-from .models import Booking, Ticket, SeatLock
+from .models import Booking, Ticket
 from .services import BookingService
 
 @admin.register(Booking)
@@ -24,11 +24,3 @@ class TicketAdmin(admin.ModelAdmin):
     list_display = ("id", "booking", "seat")
     search_fields = ("booking__id", )
 
-
-@admin.register(SeatLock)
-class SeatLockAdmin(admin.ModelAdmin):
-    """ To monitor temporary lock """
-    list_display = ("id", "showtime", "seat", "user", "locked_at", "expires_at")
-    list_filter = ("locked_at",) # see which seats were locked in last hours, etc
-    readonly_fields = ("locked_at", "expires_at")
-    search_fields = ("user__email",)

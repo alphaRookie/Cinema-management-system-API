@@ -16,7 +16,7 @@ class BookingAPIView(APIView):
     def get(self, request, pk=None): # MUST default to `None`, so it considered optional
         if pk:
             # if URL has ID, look at ONE specific booking
-            booking = get_object_or_404(Booking, pk=pk, user=request.user)
+            booking = get_object_or_404(Booking, pk=pk, user=request.user) # This returns 404 "Not Found" if the ID is wrong OR the User is wrong
             serializer = BookingReadonlySerializer(booking)
             return Response(serializer.data, status=status.HTTP_200_OK)
     

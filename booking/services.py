@@ -1,4 +1,4 @@
-from .models import Booking, Ticket, SeatLock
+from .models import Booking, Ticket
 from screening.models import Showtime, Seat
 from identity.models import User
 
@@ -6,6 +6,8 @@ from rest_framework.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 from datetime import timedelta 
+from django.core.cache import cache
+
 
 # "What stops this Booking from being allowed?" 
 class BookingService:
@@ -26,14 +28,18 @@ class BookingService:
             raise ValidationError("Showtime is required.") # if none happens
         
         if seat_ids is None and booking: # if seat_ids not provided, but booking field in Ticket is exist
-            #"In the Seatlock table, find all rows that belong to this specific user and showtime, then tell me which Seat IDs are inside those Seatlock" then list it
-            input_seat_ids = list(SeatLock.objects.filter(user=booking.user, showtime=booking.showtime).values_list("seat_id", flat=True)) 
+            # If we are UPDATING (Admin), look at existing tickets
+            input_seat_ids = list(Ticket.objects.filter(user=booking.user, showtime=booking.showtime).values_list("seat_id", flat=True)) 
         else: 
-            input_seat_ids = seat_ids or [] #get the list
-
+            # If it's a new booking, we get the list from the user
+            input_seat_ids = seat_ids or []
+        
         input_quantity = quantity if quantity else (booking.quantity if booking else len(input_seat_ids)) # when admin didnt put quantity, count all selected seats
         if not input_quantity:
             raise ValidationError("Quantity is required")
+        
+        if not user:
+            raise ValidationError("User information is missing")
 
 
         # Since the action is one single event, keep these 3 different logics together makes it Atomic
@@ -44,21 +50,6 @@ class BookingService:
         if input_showtime.start_at < timezone.now(): #if current time is more than starting line time
             raise ValidationError("The movie is already started")
         
-
-        # before doing some business logic check, we need to make sure old data is clean and clear (Find PENDING bookings that made more than 10 minutes ago)
-        expired_locks = SeatLock.objects.filter(expires_at__lt = timezone.now() - timedelta(minutes=10)) # Find all User IDs and Showtime IDs that have EXPIRED locks
-
-        for lock in expired_locks:
-            Booking.objects.filter(
-                # as we dont have PK, we cant do `seatlock__expires_at__lt`. So we use user and showtime as the "common ground" to find expired locks
-                # Find PENDING bookings for this specific person and show
-                status = "PENDING",
-                showtime = lock.showtime, # ganti ke created_at bisanya jirt...besok mungkin perlu cara undo commit ?
-                user = lock.user
-            ).update(status = "EXPIRED") # update the status
-        
-        expired_locks.delete() # Wipe out the old seatlock obj
-
 
         # 2. Check if the seat is already taken 
         if input_quantity != len(input_seat_ids):
@@ -77,29 +68,21 @@ class BookingService:
             raise ValidationError("one or more seats is not available")
         
 
-        # 3. Check if seat is locked ("on hold" by someone)
-        locked_seat = SeatLock.objects.filter(
-            showtime = input_showtime,
-            seat_id__in = input_seat_ids,
-            expires_at__gt = timezone.now() #that expires in future (means it's still locked now)
-        )
+        # 3. Check if seat is locked by someone also prevent duplicate (with REDIS)
+        for s_id in input_seat_ids:
+            lock_key = f"lock:{input_showtime.id}:{s_id}" # "Name Tag" for the specific seat and showtime to be locked ; separate by `:` semantically 
+            locked_by_user = cache.get(lock_key) # "The action" to find out if a certain "name tag" is already locked (Return None or Id)
 
-        if user: # if this lock belong to this user, ignore it
-            locked_seat = locked_seat.exclude(user=user)
-
-        if locked_seat.exists(): # exlude at the end, so the user check can happen, then we can block if other user try to
-            raise ValidationError("One or more seats are on hold by someone else")
+            if locked_by_user:
+                if locked_by_user == user.id:
+                    raise ValidationError(f"You already have a pending booking for these seats. Please pay for the existing one")
+                else:
+                    raise ValidationError(f"Seat {s_id} is on hold by someone else.")
         
-
-        # 4. if the same user has duplicate booking but havent paid yet
-        duplicate_booking = SeatLock.objects.filter(
-            showtime = input_showtime,
-            seat_id__in = input_seat_ids,
-            user = user,
-        ).exists()
-
-        if duplicate_booking:
-            raise ValidationError("You already have a pending booking for these seats. Please pay for the existing one.")
+        # we lock it after checking all (Check All-then-Act All)
+        for s_id in input_seat_ids:
+            lock_key = f"lock:{input_showtime.id}:{s_id}"
+            cache.set(lock_key, user.id, timeout=600) # Auto-delete in 600 seconds (10 mins)
 
 
         #patch for admin
@@ -122,8 +105,9 @@ class BookingService:
             return booking
         
         
-        # Booking and seatlock is created at same time, while ticket is created after user decide
+        # Booking and seatlock is created at same time, while ticket is created after payment
         with transaction.atomic():
+            # 1. makes a row in Booking table. Let's say it gets ID: 100
             new_booking = Booking.objects.create(
                 user = user,
                 showtime = input_showtime,
@@ -132,69 +116,57 @@ class BookingService:
                 status = "PENDING"
             )
 
-            bulk_seatlock = []
-            for s_id in input_seat_ids:
-                seatlock = SeatLock( # in memory
-                    showtime = input_showtime,
-                    user = user,
-                    seat_id = s_id,
-                    expires_at = timezone.now() + timedelta(minutes=10) # seatlock has 10 mins timer
-                )
-                bulk_seatlock.append(seatlock)
-            SeatLock.objects.bulk_create(bulk_seatlock)
+            # 2. Then `.set()` looks at that hidden bridge table
+            # It says: "Make a new connection: Booking 100 <-> Seat 5 and Booking 100 <-> Seat 6"
+            new_booking.seats.set(input_seat_ids)
    
         return new_booking
-
-    # LOGIC:
-    # if within 10 mins seatlock: user did payment, delete current seatlock, and change the status to CONFIRMED
-
-    # if within 10 mins seatlock: user cancel the payment, so delete seatlock, and set status to CANCELLED
-    # or if user intendedly cancel the ticket (that already bought) and ask for refund, set CANCELLED
-    
-    # if within 10 mins seatlock: user did nothing, set to EXPIRED
-    # if ticket is already bought, and the show is now finished, change to EXPIRED (maybe delete?)
-
 
 
     @staticmethod
     def confirm_booking(booking: Booking):
     # moving from Seatlock(waiting room) to Ticket(sacred room)
 
-        if booking.status == "PENDING":
-            with transaction.atomic():
-                # 1. list all seats found in Seatlock table
-                seat_ids = list(SeatLock.objects.filter(
-                    user=booking.user, 
-                    showtime=booking.showtime,
-                ).values_list("seat_id", flat=True)) 
-
-                if not seat_ids:
-                    raise ValidationError("No locked seats found in this booking")
+        if booking.status != "PENDING":
+            raise ValidationError(f"This booking is already {booking.status}") # stops if already expired/booked
         
-                # 2. create the sacred Ticket table
-                for s_id in seat_ids:
-                    Ticket.objects.create(booking=booking, seat_id=s_id) # expect the ID; but if we pass `seat=` it expect object
+        # 1. list all seats found in Booking table
+        reserved_seats = booking.seats.all() # "gimme all seats for this spesific booking"
 
-                # 3. delete the temporary lock (so nobody else can take them) 
-                SeatLock.objects.filter(
-                    showtime = booking.showtime,
-                    user = booking.user
-                ).delete()
+        # 2. Check Redis for EVERY seat
+        for each_seat in reserved_seats:
+            lock_key = f"lock:{booking.showtime.id}:{each_seat.id}"
 
-                booking.status = "CONFIRMED"
+            # This is how you "access the db of redis" to check
+            if not cache.get(lock_key):
+                # Apply these to db when 10 minutes is up
+                booking.status = "EXPIRED"
                 booking.save()
+                raise ValidationError("10 minutes payment time exceeded, please make the new one")
 
-        return booking
+        # 3. If user make payment within 10 minutes, we make sacred Ticket table
+        with transaction.atomic():
+            booking.status = "CONFIRMED"
+            booking.save()
+
+            # # Mass create the tickets
+            for each_seat in reserved_seats:
+                Ticket.objects.create(booking=booking, seat=each_seat)
+
+        # 4. Clear Redis now since the seat is already sold
+        for seat in reserved_seats:
+            cache.delete(f"lock:{booking.showtime.id}:{seat.id}")
+
+        return booking # give back the result once function finished
     
     
-
     @staticmethod
     def cancel_booking(booking: Booking):  
 
         # if user intendedly cancel the ticket (that already bought) and ask for refund, set CANCELLED
         if booking.status == "CONFIRMED":
             if booking.showtime.start_at < timezone.now():
-                raise ValidationError("Movie is already started, you can't cancel the ticket")
+                raise ValidationError("Movie is already started, you can't cancel the ticket now")
             
             if booking.showtime.end_at < timezone.now():
                 raise ValidationError("The showtime has finished")
@@ -202,12 +174,13 @@ class BookingService:
             Ticket.objects.filter(booking=booking).delete() # only delete ticket for this booking
             booking.status = "CANCELLED"
 
+
         # if within 10 mins seatlock: user cancel the payment, so delete seatlock, and set status to CANCELLED
-        elif booking.status == "PENDING":
-            SeatLock.objects.filter(
-                showtime = booking.showtime,
-                user = booking.user,
-            ).delete()
+        elif booking.status == "PENDING": # use elif bcoz it's completely different situation
+            reserved_seats = booking.seats.all() # "gimme all seats for this spesific booking"
+            for seat in reserved_seats:
+                cache.delete(f"lock:{booking.showtime.id}:{seat.id}")
+            
             booking.status = "CANCELLED" 
 
         booking.save()

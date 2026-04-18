@@ -11,8 +11,10 @@ class Booking(models.Model):
         CANCELLED = "CANCELLED", _("Cancelled")
         EXPIRED = "EXPIRED", _("Expired")
 
+    id: int
     showtime = models.ForeignKey("screening.Showtime", on_delete=models.CASCADE)
     user = models.ForeignKey("identity.User", on_delete=models.CASCADE)
+    seats = models.ManyToManyField("screening.Seat", related_name="bookings")
     quantity = models.PositiveSmallIntegerField(
         choices=[(q, q) for q in range(1, 11)],
         default=1, 
@@ -20,9 +22,7 @@ class Booking(models.Model):
     )
     status = models.CharField(max_length=50, choices=Status.choices, default=Status.PENDING)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True) # auto grab the current time
-    #in case the price will change someday, this will freeze the price 
-    #I buy a shirt for $10 yesterday, today that shirt increase to $12, the receipt history now says: "You paid $12 yesterday" (`final_price` overcome the bug)
-    final_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00) 
+    final_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00) #in case the price will change someday, this will freeze the price 
 
     def __str__(self):
         return f"Booking {self.pk} for {self.user}" # pk refer to id as default
@@ -33,15 +33,9 @@ class Booking(models.Model):
 
 class Ticket(models.Model):
     """ Represents the Seat is already occupied """
+    id: int
     booking = models.ForeignKey(Booking, on_delete=models.CASCADE)
     seat = models.ForeignKey("screening.Seat", on_delete=models.CASCADE)
 
 
-class SeatLock(models.Model):
-    """ Represents the Seat is being "On hold" (Temporary) """
-    showtime = models.ForeignKey("screening.Showtime", on_delete=models.CASCADE)
-    seat = models.ForeignKey("screening.Seat", on_delete=models.CASCADE)
-    user = models.ForeignKey("identity.User", on_delete=models.CASCADE)
-    locked_at = models.DateTimeField(auto_now_add=True)
-    expires_at = models.DateTimeField() # make logic that deletes seatlock after 10 minutes if not paid yet
-
+# Seatlock table is deleted since we apply Redis

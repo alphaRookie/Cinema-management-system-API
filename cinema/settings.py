@@ -168,3 +168,16 @@ SIMPLE_JWT = {
     "USER_ID_FIELD": "id", # this uses id as PK
     "USER_ID_CLAIM": "user_id",
 }
+
+
+
+# REDIS
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/1", # /1 means database #1 in Redis
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    }
+}
