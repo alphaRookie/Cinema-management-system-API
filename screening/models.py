@@ -15,6 +15,7 @@ class Movie(models.Model): # django creates Id (PK) automatically
         SCIFI = "SCI-FI", _("Sci-Fi")
         ROMANCE = "ROMANCE", _("Romance")
 
+    id: int
     title = models.CharField(max_length=250) # auto not null 
     genre = models.CharField(max_length=50, choices=Genre.choices, default=Genre.UNSPECIFIED)
     duration = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(240)])
@@ -30,6 +31,7 @@ class Hall(models.Model):
         STANDARD = "STANDARD", _("Standard")
         IMAX = "IMAX", _("IMAX")
     
+    id: int
     name = models.CharField(max_length=100, unique=True)
     seats_per_row = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(26)]) #layered constraint design (we can set policy max to 15 in serializer, but system default max still 26)
     seats_per_column = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(50)])
@@ -42,6 +44,7 @@ class Hall(models.Model):
     
     
 class Showtime(models.Model):
+    id: int
     start_at = models.DateTimeField(db_index=True) #  helps searching faster when data grow bigger (but takes more space and abit slower)
     price = models.DecimalField(max_digits=8, decimal_places=2, validators=[MinValueValidator(0)]) # always decimal for exact count !
     movie = models.ForeignKey(Movie, on_delete=models.PROTECT) # dont let it to be deleted, bcoz showtime is where all data gathers (historical data depends)
@@ -53,6 +56,7 @@ class Showtime(models.Model):
     
 
 class Seat(models.Model):
+    id: int
     row_label = models.CharField(max_length=1) #, choices=[(chr(i), chr(i)) for i in range(ord("A"), ord("Z")+1)]
     column_number = models.PositiveSmallIntegerField()
     hall = models.ForeignKey(Hall, on_delete=models.CASCADE) # when parent deleted, so the child

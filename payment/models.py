@@ -4,6 +4,7 @@ from django.db import models
 
 class Payment(models.Model):
     """ To record every time someone tries to pay """
+    id: int
     booking = models.ForeignKey("booking.Booking", on_delete=models.PROTECT) # Cant delete booking if payment attached
     stripe_charge_id = models.CharField(max_length=100, blank=True) # Stripe ID (receipt).. Its Generated, We get this from Stripe (intent.id) after the bank says yes
     amount = models.DecimalField(max_digits=10, decimal_places=2)
