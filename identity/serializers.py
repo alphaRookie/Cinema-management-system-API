@@ -47,7 +47,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         try:
             validate_password(value, user=self.instance) # `user=self.instance` checks if the pass has similarity with uname & email
         except DjangoValidationError as e: # catch django list of error and raise by DRF
-            raise DRFValidationError(e.message) 
+            raise DRFValidationError(list(e.messages))
         return value
     
 
