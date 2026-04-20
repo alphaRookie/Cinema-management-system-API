@@ -1,0 +1,19 @@
+# 1. Same as from .gitignore
+.idea/
+.vscode/
+__pycache__/
+*.py[cod]
+db.sqlite3
+venv/
+.venv/
+env/
+.env
+staticfiles/
+
+# 2. Additional "Docker-only" extras
+.git
+.gitignore
+.dockerignore
+README.md
+LICENSE
+*.md
