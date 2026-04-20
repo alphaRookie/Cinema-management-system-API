@@ -11,6 +11,8 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+import os
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -19,14 +21,23 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-# like app_key inside ".env" laravel
-SECRET_KEY = 'django-insecure-%)5vn03xok9@k)&_b9b=6%rox5pwje*3-gtz+8#@a_!h71i0&^'
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# --- Deployment part ---
+load_dotenv() # so it recognize that the key is stored in .env 
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-%)5vn03xok9@k)&_b9b=6%rox5pwje*3-gtz+8#@a_!h71i0&^') #fallback if .env deleted
 
-ALLOWED_HOSTS = []
+# Switch DEBUG based on environment (stays True in laptop, but changed in Railway/AWS)
+DEBUG = os.getenv('DEBUG', 'True') == 'True'
+
+# When we deploy to Railway or AWS, Django needs to know which URLs are allowed to talk to it (need to change to real Domain)
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*').split(',')
+
+# Only trust the reverse proxy (Railway/AWS) headers for Https
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+
+if not SECRET_KEY and not DEBUG:
+    raise Exception(f"SECRET_KEY must be set in production")
 
 
 # Application definition
@@ -49,6 +60,7 @@ INSTALLED_APPS = [
 # like "app/Http/Middleware" in laravel
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware', # Activate WhiteNoise (ORDER MATTERS!)
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -87,11 +99,11 @@ WSGI_APPLICATION = 'cinema.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'cinema_db', 
-        'USER': 'alfa',
-        'PASSWORD': 'alfaruqi2005.',
-        'HOST': '127.0.0.1', 
-        'PORT': '5432',
+        'NAME': os.getenv('DB_NAME', 'cinema_db'),
+        'USER': os.getenv('DB_USER', 'alfa'),
+        'PASSWORD': os.getenv('DB_PASSWORD', 'alfaruqi2005.'),
+        'HOST': os.getenv('DB_HOST', '127.0.0.1'), # Switch to 'db' in Docker
+        'PORT': os.getenv('DB_PORT', '5432'),
     }
 }
 
@@ -130,20 +142,28 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
+# Static Files (Admin panel CSS/JS)
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Media Files (Movie posters/User uploads)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 
 
-from dotenv import load_dotenv
-import os
+# Stripe
 import stripe
 
 load_dotenv() # this reads the .env file
 
+# If they are missing, we WANT it to fail so we don't accidentally use a wrong account
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
 STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY")
-
 stripe.api_key = STRIPE_SECRET_KEY # We tell the Stripe library to use our secret key
+
+if not STRIPE_SECRET_KEY:
+    raise ValueError("STRIPE_SECRET_KEY is missing! Check your .env file.") # This prevents the app from starting if we forgot the key
 
 
 
@@ -172,12 +192,18 @@ SIMPLE_JWT = {
 
 
 # REDIS
+REDIS_HOST = os.getenv('REDIS_HOST', '127.0.0.1')# Change the LOCATION line
+
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://127.0.0.1:6379/1", # /1 means database #1 in Redis
+        "LOCATION": f"redis://{REDIS_HOST}:6379/1", # /1 means database #1 in Redis
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
         }
     }
 }
+
+
+
+

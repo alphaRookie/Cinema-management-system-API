@@ -11,6 +11,8 @@ stripe = "*"
 python-dotenv = "*"
 djangorestframework-simplejwt = "*"
 django-redis = "*"
+gunicorn = "*"
+whitenoise = "*"
 
 [dev-packages]
 
