@@ -1,0 +1,45 @@
+name: Django test CI
+
+# 1. WHEN to run: Only when someone makes a Pull Request or Push to the main branch 
+on:
+  push: 
+    branches: ["main"] # This limits only when action done on main branch
+  pull_request:
+    branches: ["main"] 
+
+jobs:
+  test:
+    # 2. WHERE to run: On a fresh Ubuntu Linux virtual machine
+    runs-on: ubuntu-latest 
+    
+    steps: #this is the "To-Do List" that the robot follows in order
+      - name: Checkout code
+        uses: actions/checkout@v4 #This tells the robot to use a pre-made tool
+      
+        # GitHub doesn't have my local .env, so we make a temporary one (so that docker-compose doesn't crash)
+      - name: Create fake temp .env
+        run: |
+          touch .env
+          echo "SECRET_KEY=anyrandomstringtoputabcdefghijklmnopqrstuvwxyz" >> .env
+          echo "DB_NAME=cinema_db" >> .env
+          echo "DB_USER=alfa" >> .env
+          echo "DB_PASSWORD=alfaruqi2005." >> .env
+          echo "DB_HOST=db" >> .env
+          echo "DB_PORT=5432" >> .env
+          echo "REDIS_HOST=redis" >> .env
+          echo "STRIPE_PUBLIC_KEY=fakekey" >> .env
+          echo "STRIPE_SECRET_KEY=sk_test_fake" >> .env
+
+      - name: Build and Run Tests
+        # A. Build your Docker images using your Dockerfile
+        # B. Start Postgres and Redis in the background (-d)
+        # C. Run your Django tests inside the 'web' container
+        # D. Shut everything down when finished
+        run: |
+          docker compose build
+          docker compose up -d db redis
+          docker compose run web python manage.py test
+          docker compose down
+
+
+# In yaml, maximum space each level is 2
