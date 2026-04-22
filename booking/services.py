@@ -5,7 +5,6 @@ from identity.models import User
 from rest_framework.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
-from datetime import timedelta 
 from django.core.cache import cache
 
 
@@ -51,7 +50,16 @@ class BookingService:
             raise ValidationError("The movie is already started")
         
 
-        # 2. Check if the seat is already taken 
+        # 2. check if inputted seatid(by user) is indeed belong to that spesific hall
+        # (if showtime 1 plays in hall "IMAX 1" and range seat is 1-50, means if he choose different id, return error)
+        hall = input_showtime.hall # get the hall of that spesific showtime
+
+        seat_found = Seat.objects.filter(id__in=input_seat_ids, hall=hall)
+        if seat_found.count() != len(input_seat_ids):
+            raise ValidationError("One or more seats do not belong to the hall for this showtime")
+        
+
+        # 3. Check if the seat is already taken 
         if input_quantity != len(input_seat_ids):
             raise ValidationError(f"Quantity ({input_quantity}) must match seat count ({len(input_seat_ids)})")
         
@@ -68,7 +76,7 @@ class BookingService:
             raise ValidationError("one or more seats is not available")
         
 
-        # 3. Check if seat is locked by someone also prevent duplicate (with REDIS)
+        # 4. Check if seat is locked by someone also prevent duplicate (with REDIS)
         for s_id in input_seat_ids:
             lock_key = f"lock:{input_showtime.id}:{s_id}" # "Name Tag" for the specific seat and showtime to be locked ; separate by `:` semantically 
             locked_by_user = cache.get(lock_key) # "The action" to find out if a certain "name tag" is already locked (Return None or Id)
@@ -80,6 +88,7 @@ class BookingService:
                     raise ValidationError(f"Seat {s_id} is on hold by someone else.")
         
         # we lock it after checking all (Check All-then-Act All)
+        # ORDER MATTER !!! THIS MUST BE AFTER ALL VALIDATIONS
         for s_id in input_seat_ids:
             lock_key = f"lock:{input_showtime.id}:{s_id}"
             cache.set(lock_key, user.id, timeout=600) # Auto-delete in 600 seconds (10 mins)

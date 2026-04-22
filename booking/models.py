@@ -25,7 +25,7 @@ class Booking(models.Model):
     final_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00) #in case the price will change someday, this will freeze the price 
 
     def __str__(self):
-        return f"Booking {self.pk} for {self.user}" # pk refer to id as default
+        return f"Booking {self.pk} for {self.user} in {self.showtime}" # pk refer to id as default
 
     def total_price(self): # By putting it in the Model, we make "calculator" that available everywhere in the app without writing it twice
         return self.showtime.price * self.quantity
