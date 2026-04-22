@@ -19,14 +19,12 @@ services:
     env_file: #Tells Docker to check my .env (stored Stripe key & Secret key)
       - .env
     depends_on: #This service need to wait for them
-      db: 
-        condition: service_healthy # initialize files and memory to do health check below
-      redis:
-        condition: service_started 
+      - db
+      - redis
 
   # 2nd service: The Postgres Database
   db:
-    image: postgres:18-alpine #using other's pre-made code
+    image: postgres:15 #using other's pre-made code
     container_name: cinema-postgres
     restart: unless-stopped
     environment:
@@ -37,11 +35,7 @@ services:
       - "5432:5432"
     volumes: # Its like telling the Db container "Take that storage unit we registered and plug it in right here
       - cinema_pgdata:/var/lib/postgresql/data # Named Volume: Keeps the database data safe (even if container deleted)
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U alfa -d cinema_db"]
-      interval: 5s # ask question every 5s
-      timeout: 5s # if the db doesn't answer within 5s, that specific attempt is marked as a fail
-      retries: 5 # try 5 times. If it fails all 5, it marks the container as "Unhealthy"
+
 
   # 3rd service: Redis (for Seat Locking logic)
   redis:
