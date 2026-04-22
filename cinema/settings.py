@@ -192,12 +192,13 @@ SIMPLE_JWT = {
 
 
 # REDIS
-REDIS_HOST = os.getenv('REDIS_HOST', '127.0.0.1')# Change the LOCATION line
+REDIS_HOST = os.getenv('REDIS_HOST', '127.0.0.1')# This is like the address of the house
+REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', '') # This is like key to the front door
 
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": f"redis://{REDIS_HOST}:6379/1", # /1 means database #1 in Redis
+        "LOCATION": f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:6379/1", # /1 means database #1 in Redis
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
         }
