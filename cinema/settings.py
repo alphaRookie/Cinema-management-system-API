@@ -26,7 +26,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv() # so it recognize that the key is stored in .env 
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-%)5vn03xok9@k)&_b9b=6%rox5pwje*3-gtz+8#@a_!h71i0&^') #fallback if .env deleted
 
-# Switch DEBUG based on environment (stays True in laptop, but changed in Railway/AWS)
+# Switch DEBUG based on environment (stays True in laptop(shows the error), but changed to False in Railway(hide error))
+# like saying "Assume I'm debugging unless I specifically tell you otherwise."
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
 # When we deploy to Railway or AWS, Django needs to know which URLs are allowed to talk to it (need to change to real Domain)
@@ -55,6 +56,7 @@ INSTALLED_APPS = [
     'identity.apps.IdentityConfig',
     'rest_framework', # DRF
     'rest_framework_simplejwt.token_blacklist', # So that people can actually log out
+    'drf_spectacular', # Swagger/Redoc
 ]
 
 # like "app/Http/Middleware" in laravel
@@ -177,6 +179,7 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema', #Swagger/Redoc
 }
 
 from datetime import timedelta
@@ -207,4 +210,11 @@ CACHES = {
 
 
 
+# Swagger/Redoc docs
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Cinema Management System API',
+    'DESCRIPTION': 'High-concurrency booking engine with Redis locking and Stripe integration.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+}
 

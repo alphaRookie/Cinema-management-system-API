@@ -7,7 +7,7 @@ import re
 
 # DONT use ModelSerializer, because it passes the raw input to model to be checked by Model rules
 # we defined unique email in model, so using it will always block it
-class LoginSerializer(serializers.Serializer): 
+class WriteNonModelSerializer(serializers.Serializer): 
     email = serializers.EmailField() # No need "Unique" check 
     password = serializers.CharField(write_only=True) 
 
@@ -21,7 +21,7 @@ class LoginSerializer(serializers.Serializer):
     # We skip validate_password here because the Service/Authenticate will check if it's correct.
 
 
-class RegisterSerializer(serializers.ModelSerializer):
+class WriteModelSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True) # dont show it when display result to user
 
     class Meta:
@@ -52,9 +52,17 @@ class RegisterSerializer(serializers.ModelSerializer):
     
 
 # Focuses on displaying data
-class UserSerializer(serializers.ModelSerializer):
+class ReadUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ["id", "email", "username", "phone_number", "is_cinema_vip", "last_login"]
         read_only_fields = ["id", "is_cinema_vip"]
 
+
+
+# Swagger
+class MessageSerializer(serializers.Serializer):
+    message = serializers.CharField
+
+class IdentityResponseSerializer(MessageSerializer): # only call in post/patch
+    identity = ReadUserSerializer()

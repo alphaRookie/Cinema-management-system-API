@@ -17,6 +17,7 @@ Including another URLconf
 
 from django.contrib import admin
 from django.urls import path, include
+from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
 urlpatterns = [ # we only define prefix here, routes continues on urls in screening app
     path("admin/", admin.site.urls),
@@ -24,4 +25,9 @@ urlpatterns = [ # we only define prefix here, routes continues on urls in screen
     path("booking", include("booking.urls")),
     path("payment", include("payment.urls")),
     path("identity", include("identity.urls")),
+
+    #Swagger/Redoc
+    path('api/schema', SpectacularAPIView.as_view(), name='schema'), # This generates the "Schema" (the raw data)
+    path('api/docs/swagger', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'), # This is the INTERACTIVE one (Swagger)
+    path('api/docs/redoc', SpectacularRedocView.as_view(url_name='schema'), name='redoc'), # This is the BEAUTIFUL one (Redoc)
 ]

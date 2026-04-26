@@ -3,10 +3,25 @@
 from rest_framework import serializers
 from .models import Payment
 
-class PaymentSerializer(serializers.ModelSerializer):
-    payment_token = serializers.CharField(write_only=True) #"temporary" field for the Stripe card token
-    
+class PaymentBaseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
-        fields = ["booking", "stripe_charge_id", "amount", "status", "created_at", "payment_token"]
-        read_only_fields = ["created_at", "status", "amount"]
+        fields = ["booking", "stripe_charge_id", "amount", "status", "created_at"]
+        read_only_fields = ["created_at", "status", "amount", "stripe_charge_id"]
+
+class PaymentReadSerializer(PaymentBaseSerializer):
+    class Meta(PaymentBaseSerializer.Meta):
+        pass #use the same field
+
+class PaymentWriteSerializer(PaymentBaseSerializer):
+    payment_token = serializers.CharField(write_only=True) #"temporary" field for the Stripe card token (we dont want to show this to user)
+    class Meta(PaymentBaseSerializer.Meta):
+        fields = PaymentBaseSerializer.Meta.fields + ["payment_token"]
+
+
+#Swagger
+class MessageSerializer(serializers.Serializer):
+    serializer = serializers.CharField()
+
+class PaymentResponseSerializer(MessageSerializer):
+    payment = PaymentReadSerializer() #show the read

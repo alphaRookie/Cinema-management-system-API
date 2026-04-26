@@ -7,31 +7,28 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 
 from .models import Movie, Hall, Showtime, Seat
-from .serializers import MovieSerializer, HallSerializer, HallReadonlySerializer, ShowtimeSerializer, ShowtimeReadonlySerializer, SeatSerializer
+from .serializers import MovieSerializer, HallWriteSerializer, HallReadSerializer, ShowtimeWriteSerializer, ShowtimeReadListSerializer, ShowtimeReadItemSerializer, SeatSerializer, MessageSerializer, MovieResponseSerializer, HallResponseSerializer, ShowtimeResponseSerializer, SeatResponseSerializer
 from .services import MovieService, HallService, ShowtimeService, SeatService
 from .permissions import IsManager, IsWorker, IsManagerOrReadonly
 from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import extend_schema, extend_schema_view
 
 
-class MovieAPIView(APIView): 
-    permission_classes = [IsManagerOrReadonly] # anyone can GET, and only logged-in admin can POST, PATCH, DELETE
+@extend_schema_view(
+    get=extend_schema(summary="List all Movies", responses={200: MovieSerializer(many=True)}),
+    post=extend_schema(summary="Adds a New Movie", request=MovieSerializer, responses={201: MovieResponseSerializer})
+)
+class MovieAPIView(APIView):
+    permission_classes = [IsManagerOrReadonly]
 
-    def get(self, request, pk=None): # MUST default to `None`, so it considered optional
-        if pk:
-            movie = get_object_or_404(Movie, pk=pk) 
-            serializer = MovieSerializer(movie) # no need `many=True` bcoz return single obj (Model to JSON)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        
+    def get(self, request):
         movies = Movie.objects.all() # this is like: SELECT * FROM Movie and turn into obj
         serializer = MovieSerializer(movies, many=True) # return Queryset (list of many models rows) to JSON
         return Response(serializer.data, status=status.HTTP_200_OK)
-    
 
     def post(self, request):
         serializer = MovieSerializer(data = request.data) # JSON to Model
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
+        serializer.is_valid(raise_exception=True)
         movie = MovieService.save_movie(
             movie=None,
             title=serializer.validated_data.get("title"),
@@ -42,9 +39,22 @@ class MovieAPIView(APIView):
         ) 
         return Response({
             "message": "New movie added",
-            "movie": MovieSerializer(movie).data
+            "movie": MovieSerializer(movie).data #input shape is same as output shape, so we use the same serializer
         }, status=status.HTTP_201_CREATED)
-    
+
+
+@extend_schema_view(
+    get=extend_schema(summary="Returns the details of a specific movie by ID", responses={200: MovieSerializer}),
+    patch=extend_schema(summary="Updates an existing movie", request=MovieSerializer, responses={200: MovieResponseSerializer}),
+    delete=extend_schema(summary="Deletes a movie by ID",responses={200: MessageSerializer})
+)
+class MovieItemAPIView(APIView):
+    permission_classes = [IsManagerOrReadonly] # anyone can GET, and only logged-in admin can POST, PATCH, DELETE
+
+    def get(self, request, pk):
+        movie = get_object_or_404(Movie, pk=pk) 
+        serializer = MovieSerializer(movie) # no need `many=True` bcoz return single obj (Model to JSON)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request, pk):
         movie = get_object_or_404(Movie, pk=pk)
@@ -62,8 +72,7 @@ class MovieAPIView(APIView):
             "message": "Movie updated",
             "movie": MovieSerializer(updated_movie).data
         }, status=status.HTTP_200_OK) # patch return OK, not 201
-        
-        
+
     def delete(self, request, pk):
         movie = get_object_or_404(Movie, pk=pk)
         movie.delete()
@@ -71,22 +80,20 @@ class MovieAPIView(APIView):
 
 
 
+@extend_schema_view(
+    get=extend_schema(summary="List all Halls", responses={200: HallReadSerializer(many=True)}),
+    post=extend_schema(summary="Adds a New Hall", request=HallWriteSerializer, responses={201: HallResponseSerializer})
+)
 class HallAPIView(APIView):
     permission_classes = [IsManagerOrReadonly]
 
-    def get(self, request, pk=None):
-        if pk:
-            hall = get_object_or_404(Hall, pk=pk)
-            serializer = HallReadonlySerializer(hall)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        
+    def get(self, request):
         halls = Hall.objects.all()
-        serializer = HallReadonlySerializer(halls, many=True) 
+        serializer = HallReadSerializer(halls, many=True) 
         return Response(serializer.data, status=status.HTTP_200_OK)
         
-
     def post(self, request):
-        serializer = HallSerializer(data = request.data)
+        serializer = HallWriteSerializer(data = request.data)
         serializer.is_valid(raise_exception=True)
         hall = HallService.save_hall(
             hall=None,
@@ -97,13 +104,26 @@ class HallAPIView(APIView):
         )
         return Response({
             "message": "New Hall created",
-            "hall": HallSerializer(hall).data
+            "hall": HallReadSerializer(hall).data # desired output is different to what we input 
         }, status=status.HTTP_201_CREATED)
     
     
+@extend_schema_view(
+    get=extend_schema(summary="Retrieve the details of a specific hall by ID", responses={200: HallReadSerializer}),
+    patch=extend_schema(summary="Updates an existing Hall by ID", request=HallWriteSerializer, responses={200: HallResponseSerializer}),
+    delete=extend_schema(summary="Deletes a Hall by ID", responses={200: MessageSerializer})
+)
+class HallItemAPIView(APIView):
+    permission_classes = [IsManagerOrReadonly]
+
+    def get(self, request, pk):
+        hall = get_object_or_404(Hall, pk=pk)
+        serializer = HallReadSerializer(hall)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
     def patch(self, request, pk):
         hall = get_object_or_404(Hall, pk=pk) # this is like: SELECT * FROM Hall WHERE id=pk from db
-        serializer = HallSerializer(hall, data=request.data, partial=True)
+        serializer = HallWriteSerializer(hall, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         updated_hall = HallService.save_hall(
             hall=hall, 
@@ -114,10 +134,9 @@ class HallAPIView(APIView):
         )
         return Response({
             "message": "Hall updated",
-            "hall": HallSerializer(updated_hall).data
+            "hall": HallReadSerializer(updated_hall).data
         }, status=status.HTTP_200_OK)
     
-
     def delete(self, request, pk):
         hall = get_object_or_404(Hall, pk=pk)
         hall.delete()
@@ -125,25 +144,23 @@ class HallAPIView(APIView):
 
 
 
+@extend_schema_view(
+    get=extend_schema(summary="List all Showtimes",responses={200: ShowtimeReadListSerializer(many=True)}),
+    post=extend_schema(summary="Adds a New Showtime", request=ShowtimeWriteSerializer, responses={201: ShowtimeResponseSerializer})
+)
 class ShowtimeAPIView(APIView):
     permission_classes = [IsManagerOrReadonly]
 
     # Trip out: Get list of showtimes
-    def get(self, request, pk=None):
-        if pk:
-            showtime = get_object_or_404(Showtime, pk=pk)
-            serializer = ShowtimeReadonlySerializer(showtime, context={"request":request})
-            return Response(serializer.data, status=status.HTTP_200_OK)
-
+    def get(self, request):
         showtimes = Showtime.objects.all()
-        serializer = ShowtimeReadonlySerializer(showtimes, many=True, context={"request":request})
+        serializer = ShowtimeReadListSerializer(showtimes, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
         
-
     # Trip in: Create new showtimes
     def post(self, request):
         # 1.check format (serializer)
-        serializer = ShowtimeSerializer(data = request.data, context={"request":request}) #takes raw material(JSON) from user and holds
+        serializer = ShowtimeWriteSerializer(data = request.data) #takes raw material(JSON) from user and holds
         serializer.is_valid(raise_exception=True)
         showtime = ShowtimeService.save_showtime(
             showtime=None,
@@ -154,13 +171,26 @@ class ShowtimeAPIView(APIView):
         )
         return Response({
             "message": "New Showtime added",
-            "showtime": ShowtimeSerializer(showtime).data
+            "showtime": ShowtimeReadListSerializer(showtime).data
         }, status=status.HTTP_201_CREATED)# If everything succeeded, you turn the new 'showtime' object back into JSON to (show the user what was created)
 
+
+@extend_schema_view(
+    get=extend_schema(summary="Retrieve details of a specific showtime by ID", responses={200: ShowtimeReadItemSerializer}),
+    patch=extend_schema(summary="Updates an existing Showtime by ID", request=ShowtimeWriteSerializer, responses={200: ShowtimeResponseSerializer}),
+    delete=extend_schema(summary="Deletes a Showtime by ID", responses={200: MessageSerializer})
+)
+class ShowtimeItemAPIView(APIView):
+    permission_classes = [IsManagerOrReadonly]
+
+    def get(self, request, pk):
+        showtime = get_object_or_404(Showtime, pk=pk)
+        serializer = ShowtimeReadItemSerializer(showtime)
+        return Response(serializer.data, status=status.HTTP_200_OK)
     
     def patch(self, request, pk):
         showtime = get_object_or_404(Showtime, pk=pk)
-        serializer = ShowtimeSerializer(showtime, data=request.data, partial=True, context={"request":request})
+        serializer = ShowtimeWriteSerializer(showtime, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         updated_showtime = ShowtimeService.save_showtime(
             showtime=showtime, 
@@ -171,10 +201,9 @@ class ShowtimeAPIView(APIView):
         )
         return Response({
             "message": "Showtime updated",
-            "showtime": ShowtimeSerializer(updated_showtime).data
+            "showtime": ShowtimeReadItemSerializer(updated_showtime).data
         }, status=status.HTTP_200_OK)
     
-
     def delete(self, request, pk):
         showtime = get_object_or_404(Showtime, pk=pk)
         showtime.delete()
@@ -182,6 +211,10 @@ class ShowtimeAPIView(APIView):
 
 
 
+@extend_schema_view(
+    get=extend_schema(summary="Retrieve the details of a specific seat by ID", responses={200: SeatSerializer}),
+    patch=extend_schema(summary="Updates an existing Seat", request=SeatSerializer, responses={200: SeatResponseSerializer}),
+)
 class SeatAPIView(APIView):
     permission_classes = [IsAuthenticated, IsManager | IsWorker]
 

@@ -9,7 +9,7 @@ class BookingBaseSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "user", "seats","status", "created_at", "final_price"]
 
 
-class BookingReadonlySerializer(BookingBaseSerializer):
+class BookingReadSerializer(BookingBaseSerializer):
     choosen_seats = serializers.SerializerMethodField() # We add a way to see the seats actually saved in the Ticket table
     class Meta(BookingBaseSerializer.Meta):
         fields = BookingBaseSerializer.Meta.fields + ["choosen_seats"]
@@ -24,7 +24,7 @@ class BookingReadonlySerializer(BookingBaseSerializer):
         return obj.seats.values_list("id", flat=True)    
 
 
-class BookingSerializer(BookingBaseSerializer):
+class BookingWriteSerializer(BookingBaseSerializer):
     seat_ids = serializers.ListField(child=serializers.IntegerField(), write_only=True)
     class Meta(BookingBaseSerializer.Meta):
         fields = BookingBaseSerializer.Meta.fields + ["seat_ids"]
@@ -34,3 +34,11 @@ class BookingSerializer(BookingBaseSerializer):
             raise ValidationError("You must select at least one seat")
         return value
 
+
+#Swagger
+class MessageSerializer(serializers.Serializer):
+    message = serializers.CharField
+
+class BookingResponseSerializer(MessageSerializer):
+    booking = BookingWriteSerializer()
+    

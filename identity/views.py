@@ -5,25 +5,30 @@ from rest_framework.permissions import IsAuthenticated, AllowAny # only logged-i
 from typing import cast
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from .models import User
-from .serializers import RegisterSerializer, LoginSerializer, UserSerializer
+from .serializers import WriteModelSerializer, WriteNonModelSerializer, ReadUserSerializer, MessageSerializer, IdentityResponseSerializer
 from .services import UserService
 from .permissions import IsOwner, IsManager
 
 
+@extend_schema_view(
+    get=extend_schema(summary="For user to access his Profile", responses={200: ReadUserSerializer}),
+    patch=extend_schema(summary="To change User's Profile", request=WriteModelSerializer, responses={201: IdentityResponseSerializer})
+)
 # allow spesific logged-in user to see 'his own' profile, also update it
 class UserProfileAPIView(APIView):
     permission_classes = [IsAuthenticated, IsOwner] 
     
     def get(self, request):
-        serializer = UserSerializer(request.user) #we use `request.user` bcoz they already logged-in
+        serializer = ReadUserSerializer(request.user) #we use `request.user` bcoz they already logged-in
         return Response(serializer.data, status=status.HTTP_200_OK) # let frontend handle the message for `GET`
     
     def patch(self, request):
-        # We use RegisterSerializer for the INPUT (it has the validation rules)
-        # But we use UserSerializer for the OUTPUT (the response)
-        serializer = RegisterSerializer(request.user, data=request.data, partial=True) #compare
+        # We use WriteModelSerializer for the INPUT (it has the validation rules)
+        # But we use ReadUserSerializer for the OUTPUT (the response)
+        serializer = WriteModelSerializer(request.user, data=request.data, partial=True) #compare
         serializer.is_valid(raise_exception=True)
 
         update_user = UserService.save_user(
@@ -38,16 +43,18 @@ class UserProfileAPIView(APIView):
         # Changing a username or phone_number doesn't change "who" the user is, the token is still valid
         return Response({
             "message": "Profile updated",
-            "user": UserSerializer(update_user).data 
+            "user": ReadUserSerializer(update_user).data 
         }, status=status.HTTP_200_OK)
         
-    
-#for register
+
+@extend_schema_view(
+    post=extend_schema(summary="To register an Account", request=WriteModelSerializer, responses={201: IdentityResponseSerializer})
+)
 class RegisterUserAPIView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        serializer = RegisterSerializer(data=request.data)
+        serializer = WriteModelSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         register_user = UserService.save_user(
@@ -64,17 +71,19 @@ class RegisterUserAPIView(APIView):
             "message": "Register successful",
             "refresh": str(refresh),
             "access": str(refresh.access_token),
-            "user": UserSerializer(register_user).data,
+            "user": ReadUserSerializer(register_user).data,
             }, status=status.HTTP_201_CREATED
         )
 
 
-#for login
+@extend_schema_view(
+    post=extend_schema(summary="Login to a Registered Account", description="Authenticate a user with email and password to receive Bearer tokens.", request=WriteNonModelSerializer, responses={200: IdentityResponseSerializer})
+)
 class LoginUserAPIView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        serializer = LoginSerializer(data=request.data)
+        serializer = WriteNonModelSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
         login_user = cast(User, UserService.authenticate_user(# cast will catch typo error like "print(login_user.is_cinema_vp)"
@@ -88,12 +97,14 @@ class LoginUserAPIView(APIView):
             "message": "Login successful",
             "refresh": str(refresh),
             "access": str(refresh.access_token),
-            "user": UserSerializer(login_user).data,
+            "user": ReadUserSerializer(login_user).data,
         }, status=status.HTTP_200_OK)
 
 
-# This logs out the refresh_token, not access_token
-class LogoutUserAPIView(APIView):
+@extend_schema_view(
+    post=extend_schema(summary="Log-out from an Account", responses={200: MessageSerializer})
+)
+class LogoutUserAPIView(APIView): # This logs out the refresh_token, not access_token
     permission_classes = [IsAuthenticated, IsOwner]
 
     def post(self, request):
@@ -106,7 +117,7 @@ class LogoutUserAPIView(APIView):
 
             return Response({
                 "message": "Logout successful. Token is now invalid."
-            }, status=status.HTTP_205_RESET_CONTENT)
+            }, status=status.HTTP_200_OK)
             
         except Exception as e:
             return Response({
@@ -114,20 +125,33 @@ class LogoutUserAPIView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
 
 
+#-------------------- ADMIN --------------------
+
+@extend_schema_view(
+    get=extend_schema(summary="Admin: List all Users", responses={200: ReadUserSerializer(many=True)}) #bcoz it returns list
+)
 class AdminUserAPIView(APIView):
     permission_classes = [IsAuthenticated, IsManager]
 
-    def get(self, request, pk=None):
-        if pk:
-            user = get_object_or_404(User, pk=pk)
-            serializer = UserSerializer(user)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        
+    def get(self, request):
         users = User.objects.all().order_by("-date_joined")
-        serializer = UserSerializer(users, many=True)
+        serializer = ReadUserSerializer(users, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
-        
-    def delete(self, request, pk=None):
+
+
+@extend_schema_view(
+    get=extend_schema(summary="Admin: Retrieve the detail of an Account by ID", responses={200: ReadUserSerializer}),
+    delete=extend_schema(summary="Admin: Deletes an Account by ID", responses={200: MessageSerializer})
+)
+class AdminUserItemAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsManager]
+
+    def get(self, request, pk):
+        user = get_object_or_404(User, pk=pk)
+        serializer = ReadUserSerializer(user)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    def delete(self, request, pk):
         user = get_object_or_404(User, pk=pk)
         user.delete()
         return Response({"message": f"User {user.email} has been removed"})

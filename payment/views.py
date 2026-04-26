@@ -6,36 +6,50 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 
 from .models import Payment
-from .serializers import PaymentSerializer
+from .serializers import PaymentReadSerializer, PaymentWriteSerializer, PaymentResponseSerializer
 from .services import PaymentService
 from booking.models import Booking
 from django.shortcuts import get_object_or_404
 from .permissions import IsManager, IsPaymentOwner
+from drf_spectacular.utils import extend_schema, extend_schema_view
 
 
+@extend_schema_view(
+    get=extend_schema(summary="For user to see all of his payment receipts collection", responses={200: PaymentReadSerializer(many=True)}),
+)
 class PaymentAPIView(APIView):
     permission_classes = [IsAuthenticated, IsPaymentOwner]
 
-    def get(self, request, pk=None):
-        if pk:
-            payment = get_object_or_404(Payment, pk=pk) # dont put `user=request.user`, bcoz we dont have the field
-            self.check_object_permissions(request, payment) # This triggers IsPaymentOwner to check if payment.booking.user == request.user
-            serializer = PaymentSerializer(payment)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        
+    def get(self, request):
         list_payments = Payment.objects.filter(
             booking__user=request.user, # payment dont have user field, so we connect user via booking
             status = "SUCCESS", # This will hide the FAILED part
         ).order_by("-created_at") # minus is reverse, put the newest at top
-        serializer = PaymentSerializer(list_payments, many=True)
+        serializer = PaymentReadSerializer(list_payments, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+
+@extend_schema_view(
+    get=extend_schema(summary="For user to see the detail of his payment receipts", responses={200: PaymentReadSerializer}),
+)
+class PaymentItemAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsPaymentOwner]
+
+    def get(self, request, pk):
+        payment = get_object_or_404(Payment, pk=pk) # dont put `user=request.user`, bcoz we dont have the field
+        self.check_object_permissions(request, payment) # This triggers IsPaymentOwner to check if payment.booking.user == request.user
+        serializer = PaymentReadSerializer(payment)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+@extend_schema_view(
+    post=extend_schema(summary="Proceed the Payment process", request=PaymentWriteSerializer, responses={201: PaymentResponseSerializer})
+)
 class PaymentPostAPIView(APIView):
     permission_classes = [IsAuthenticated] # no need to include owner, bcoz payment not exist yet
 
     def post(self, request):
-        serializer = PaymentSerializer(data=request.data)
+        serializer = PaymentWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
         # Normally we use `pk=pk` to know which booking or sth, which accessible by typing number in url
@@ -49,21 +63,32 @@ class PaymentPostAPIView(APIView):
         ) 
         return Response({
             "message": "Payment Successful!",
-            "payment": PaymentSerializer(payment).data
+            "payment": PaymentReadSerializer(payment).data
         }, status=status.HTTP_201_CREATED)
 
 
+#-------------------- ADMIN --------------------
+
+@extend_schema_view(
+    get=extend_schema(summary="Admin: to see all of the payments happened", responses={200: PaymentReadSerializer(many=True)}),
+)
 class AdminPaymentAPIView(APIView):
     permission_classes = [IsAuthenticated, IsManager]
 
-    def get(self, request, pk=None):
-        if pk:
-            # detail of a customer's digital receipt
-            payment = get_object_or_404(Payment, pk=pk)
-            serializer = PaymentSerializer(payment)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        
-        # Manager can see all of the payments happened
+    def get(self, request):
         list_payments = Payment.objects.all().order_by("-created_at")
-        serializer = PaymentSerializer(list_payments, many=True)
+        serializer = PaymentReadSerializer(list_payments, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@extend_schema_view(
+    get=extend_schema(summary="Admin: to see the detail of a payment receipts", responses={200: PaymentReadSerializer}),
+)
+class AdminPaymentItemAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsManager]
+
+    def get(self, request, pk):
+        # detail of a customer's digital receipt
+        payment = get_object_or_404(Payment, pk=pk)
+        serializer = PaymentReadSerializer(payment)
         return Response(serializer.data, status=status.HTTP_200_OK)

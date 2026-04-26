@@ -36,7 +36,7 @@ class HallBaseSerializer(serializers.ModelSerializer):
         read_only_fields = ["id"]
     
 
-class HallReadonlySerializer(HallBaseSerializer):
+class HallReadSerializer(HallBaseSerializer):
     total_seats = serializers.SerializerMethodField()
 
     class Meta(HallBaseSerializer.Meta):
@@ -46,7 +46,7 @@ class HallReadonlySerializer(HallBaseSerializer):
         return Seat.objects.filter(hall=obj).count() # when at halls A, return the count from hall "A". and so on..
     
 
-class HallSerializer(HallBaseSerializer):
+class HallWriteSerializer(HallBaseSerializer):
     class Meta(HallBaseSerializer.Meta):
         fields = HallBaseSerializer.Meta.fields 
 
@@ -74,17 +74,13 @@ class ShowtimeBaseSerializer(serializers.ModelSerializer):
         fields = ["id", "start_at", "price", "end_at"]
         read_only_fields = ["id", "end_at"]
 
-
-class ShowtimeReadonlySerializer(ShowtimeBaseSerializer):
-    #get(shown in ShowtimeListAPIView)
+    
+class ShowtimeReadListSerializer(ShowtimeBaseSerializer):
     movie_info = serializers.SerializerMethodField() # this pattern is good for customing what return (show readable text)
     hall_info = serializers.SerializerMethodField()
-    #get(shown in ShowtimeDetailAPIView)
-    movie_detail = MovieSerializer(source="movie", read_only=True) # this pattern best for showing full data
-    hall_detail = HallSerializer(source="hall", read_only=True) # Points to `hall`, but `hall_info` shows entire data ("hall": {...})
 
     class Meta(ShowtimeBaseSerializer.Meta):
-        fields = ShowtimeBaseSerializer.Meta.fields + ["movie_info", "hall_info", "movie_detail", "hall_detail"]
+        fields = ShowtimeBaseSerializer.Meta.fields + ["movie_info", "hall_info"]
 
     def get_movie_info(self, obj):
         return { "title": obj.movie.title }
@@ -95,25 +91,16 @@ class ShowtimeReadonlySerializer(ShowtimeBaseSerializer):
             "screen_type": obj.hall.screen_type
         }
     
-    def to_representation(self, instance):
-        representation = super().to_representation(instance)# 1. Get the normal data first
-        request = self.context.get('request')# 2. Check the request context
-        
-        # 3. If the URL has a "pk" (ID), it means we are in the Detail View
-        # If not, it's the List View.
-        is_detail_view = request and 'pk' in request.parser_context.get('kwargs', {})
 
-        if not is_detail_view: # If it's NOT the detail view: Show Detail, Hide Info
-            representation.pop('movie_detail', None)
-            representation.pop('hall_detail', None)
-        else: # If it IS the detail view: Show Info, Hide Detail
-            representation.pop('movie_info', None)
-            representation.pop('hall_info', None)
+class ShowtimeReadItemSerializer(ShowtimeBaseSerializer):
+    movie_detail = MovieSerializer(source="movie", read_only=True) # this pattern best for showing full data
+    hall_detail = HallReadSerializer(source="hall", read_only=True) # Points to `hall`, but `hall_info` shows entire data ("hall": {...})
 
-        return representation
+    class Meta(ShowtimeBaseSerializer.Meta):
+        fields = ShowtimeBaseSerializer.Meta.fields + ["movie_detail", "hall_detail"]
 
-        
-class ShowtimeSerializer(ShowtimeBaseSerializer):
+
+class ShowtimeWriteSerializer(ShowtimeBaseSerializer):
     #post/patch
     movie = serializers.PrimaryKeyRelatedField(queryset=Movie.objects.all(), write_only=True)
     hall = serializers.PrimaryKeyRelatedField(queryset=Hall.objects.all(), write_only=True)
@@ -131,3 +118,15 @@ class ShowtimeSerializer(ShowtimeBaseSerializer):
 # GET (Trip Out): The user receives the JSON. They don't see "movie": 5 (because it's hidden). Instead, they see "movie_detail": {...} which contains the Title, Genre, and Rating.
 
 
+# For Swagger (custom response showing "message and result") --for POST and PATCH
+class MessageSerializer(serializers.Serializer):
+    message = serializers.CharField()
+
+class MovieResponseSerializer(MessageSerializer): # inherit
+    movie = MovieSerializer()
+class HallResponseSerializer(MessageSerializer):
+    hall = HallWriteSerializer()
+class ShowtimeResponseSerializer(MessageSerializer):
+    showtime = ShowtimeWriteSerializer()
+class SeatResponseSerializer(MessageSerializer):
+    seat = SeatSerializer()

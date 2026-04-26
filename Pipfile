@@ -13,6 +13,7 @@ djangorestframework-simplejwt = "*"
 django-redis = "*"
 gunicorn = "*"
 whitenoise = "*"
+drf-spectacular = "*"
 
 [dev-packages]
 
