@@ -85,6 +85,18 @@ This project is built for "Production-First" stability:
     * **The "Brute Force" Stability Logic:** The CI pipeline uses a sophisticated wait-mechanic to ensure the PostgreSQL database is fully initialized and healthy before tests run, preventing "unhealthy container" failures.
 * **Cloud Orchestration:** Deployed on **Railway**, utilizing internal networking (`.railway.internal`) for high-speed, secure communication between the API, PostgreSQL, and the Redis cache.
 
+---
+
+## API Documentation
+This project uses **OpenAPI 3.0** to provide self-documenting, interactive API manuals. This ensures the backend and frontend stay perfectly synchronized.
+
+* **Swagger UI (Interactive):** Test endpoints directly in the browser with built-in JWT support.
+* **Redoc:** A clean, professional technical manual for deep exploration.
+* **Postman Integration:** The raw schema can be imported into Postman to instantly generate a full request collection.
+
+#### How to access (Local):
+* **Swagger:** [http://localhost:8000/api/docs/swagger](http://localhost:8000/api/docs/swagger)
+* **Redoc:** [http://localhost:8000/api/docs/redoc](http://localhost:8000/api/docs/redoc)
 
 ---
 
@@ -102,6 +114,7 @@ Before you start, make sure you have the following installed:
 * **Infrastructure:** Docker, GitHub Actions(CI/CD), Railway
 * **Server:** Gunicorn & WhiteNoise
 * **API Testing:** Postman (for testing protected endpoints via Bearer Tokens)
+* **API Documentation:** OpenAPI 3.0, Swagger UI, Redoc (`drf-spectacular`)
 
 1. **Clone the repository:**
     ```bash
