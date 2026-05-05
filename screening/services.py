@@ -1,9 +1,16 @@
 # where we put logic business rules
 from .models import Movie, Hall, Showtime, Seat
+from identity.models import User
+from booking.models import Booking, Ticket
 from rest_framework.exceptions import ValidationError # in normal django we import from "django.core.exceptions"
 from datetime import timedelta, date, datetime
 from decimal import Decimal
 from django.db import transaction
+from django.db.models import Count, Avg, Max, Min, Sum
+from django.utils import timezone
+from django.core.cache import cache
+from django_redis.cache import RedisCache
+
 
 class MovieService:
     @staticmethod # because the service doesn't need to "know" about itself. It only cares about the data you give it
@@ -100,6 +107,8 @@ class HallService:
 
 
 
+# Use HallService style when the steps for "Create" and "Update" are totally different
+# Use ShowtimeService style when the "Math" and "Validation" are the same for both (update and create not so diff)
 class ShowtimeService:
     @staticmethod
     def save_showtime(
@@ -170,16 +179,13 @@ class ShowtimeService:
         )
 
 
-# Use HallService style when the steps for "Create" and "Update" are totally different
-# Use ShowtimeService style when the "Math" and "Validation" are the same for both (update and create not so diff)
-
-
 
 class SeatService:
     @staticmethod
     def update_seat(
         seat: Seat,
         is_broken: bool | None = None,
+        **kwargs
     ):
         # We only update 'is_broken'. Row and Column are locked.
         if is_broken is not None:
@@ -187,3 +193,96 @@ class SeatService:
         
         seat.save()
         return seat
+
+
+
+# The output is focused on analyze instead of just CRUD
+class ScreeningAnalytic():
+    @staticmethod
+    def top_movies():
+        """ Showing the most picked movies by customer """
+        # Use 'values' to group by the Movie Title (via Showtime) ; JOIN the spesific target column only (what we want to show)
+        # Use 'annotate' to Sum the quantity for "each group" of Title
+        return Booking.objects.filter(status="CONFIRMED") \
+            .values("showtime__movie__title") \
+            .annotate(total_sold=Sum("quantity")) \
+            .order_by("-total_sold") # from highest
+    
+    # later add dynamic filter by day, week, month
+    # also maybe add way to take only top 5 for admin? bcoz rn i meant making this for both everyone
+    
+
+    @staticmethod
+    def showtime_occupancy(): # dont need to give a specific showtime; it finds them itself using '.objects.filter'
+        """ Showing Real-time upcoming Showtime(alongside movie and hall info) """
+        
+        # use select_related to avoid slow "N+1" queries
+        upcoming_shows = Showtime.objects.filter(start_at__gt=timezone.now()) \
+        .select_related("movie", "hall") \
+        .order_by("-start_at")
+
+        showtime_report = [] #empty tray to store collections
+
+        for show in upcoming_shows: 
+            capacity = show.hall.seats_per_row * show.hall.seats_per_column # use 'show.' to calculate the math for each individual movie slot
+            ticket_counts = show.booking_set.filter(status="CONFIRMED").aggregate(total_seat=Sum("quantity")) ["total_seat"] or 0 #get "all confirmed booking/ticket for this showtime", then sum it --backward logic #type:ignore
+            occupancy_rate = (ticket_counts/capacity)*100 if capacity>0 else 0
+
+            time_str = show.start_at.strftime("%d %b %Y, %H:%M") #convert to readable time
+            display_text = f"[{time_str}] {show.movie.title} - {show.hall.name} ({int(occupancy_rate)}% Full)" # not use class name (showtime)
+
+            showtime_report.append({
+                "id": show.id,
+                "screening": display_text
+            })
+        return showtime_report
+
+
+    @staticmethod
+    def hall_seats_layout(showtime_id): #enough to pass showtime id only
+        """ Triggered when admin clicks a spesific showtime_occupancy --to see detail seats layout of a Hall. """
+
+        # 1. Get the specific showtime(and the Hall it belongs to) --when user click a spesific showtime
+        selected_showtime = Showtime.objects.select_related("hall").get(id=showtime_id) #use get bcoz we click on a spesific choice
+        all_seats = selected_showtime.hall.seat_set.all() #Get all seats in of that specific Hall
+
+        # 2. Get 'Confirmed' seat IDs from Postgres (look for tickets linked to this specific showtime)
+        confirmed_seats = Ticket.objects.filter(
+            booking__showtime_id = showtime_id,
+            booking__status = "CONFIRMED"
+        ).values_list("seat_id", flat=True) # list all seat_id from this showtime that are already confirmed
+
+        # 3. Get 'Pending' seat IDs from Redis
+        # Use the '*' to find all locked seats for this showtime
+        locked_keys = cache.keys(f"lock:{showtime_id}:*") #type:ignore # This "lock:" name must be same everywhere
+        locked_seats = [int(k.split(':')[-1]) for k in locked_keys] # Turn "seatlock:5:102" into just the ID 102
+
+        # 4. Get info of which seat belong to who
+        taker = Ticket.objects.filter(
+            booking__showtime_id = showtime_id,
+            booking__status = "CONFIRMED"
+        ).select_related("booking__user") #grab user from this showtime that are already confirmed
+
+        # use Dictionary map --each occupied seat(key) has value(email)
+        # Turn the Queryset from "taker" to simple dictionary --ex: {101: "manager1@gmail.com", 105: "student@uni.edu"}
+        map_taker = {t.seat.id: t.booking.user.email for t in taker} 
+
+
+        seat_layout = []
+        for seat in all_seats:
+            if seat.is_broken:
+                status = "Grey"
+            elif seat.id in confirmed_seats:
+                status = "Red"
+            elif seat.id in locked_seats: 
+                status = "Yellow"
+            else:
+                status = "Green"
+
+            seat_layout.append({
+                "seat_id": seat.id,
+                "seat_label": f"{seat.row_label}-{seat.column_number}",
+                "status": status,
+                "taken_by": map_taker.get(seat.id, "None") # asks: "Do we have a record for Seat ID 101, 102, 109?" --if yes show the email otherwise "None"
+            })
+        return seat_layout

@@ -130,3 +130,11 @@ class ShowtimeResponseSerializer(MessageSerializer):
     showtime = ShowtimeWriteSerializer()
 class SeatResponseSerializer(MessageSerializer):
     seat = SeatSerializer()
+
+
+
+class TopMovieSerializer(serializers.Serializer):
+    movie_title = serializers.CharField(source="showtime__movie__title") # so the JSON keys will return {movie_title:"..."} instead of {showtime__movie__title:"..."}
+    total_sold = serializers.IntegerField()
+
+

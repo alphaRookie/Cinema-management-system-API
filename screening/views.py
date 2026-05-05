@@ -7,8 +7,8 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 
 from .models import Movie, Hall, Showtime, Seat
-from .serializers import MovieSerializer, HallWriteSerializer, HallReadSerializer, ShowtimeWriteSerializer, ShowtimeReadListSerializer, ShowtimeReadItemSerializer, SeatSerializer, MessageSerializer, MovieResponseSerializer, HallResponseSerializer, ShowtimeResponseSerializer, SeatResponseSerializer
-from .services import MovieService, HallService, ShowtimeService, SeatService
+from .serializers import MovieSerializer, HallWriteSerializer, HallReadSerializer, ShowtimeWriteSerializer, ShowtimeReadListSerializer, ShowtimeReadItemSerializer, SeatSerializer, MessageSerializer, MovieResponseSerializer, HallResponseSerializer, ShowtimeResponseSerializer, SeatResponseSerializer, TopMovieSerializer
+from .services import MovieService, HallService, ShowtimeService, SeatService, ScreeningAnalytic
 from .permissions import IsManager, IsWorker, IsManagerOrReadonly
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -213,18 +213,18 @@ class ShowtimeItemAPIView(APIView):
 
 @extend_schema_view(
     get=extend_schema(summary="Retrieve the details of a specific seat by ID", responses={200: SeatSerializer}),
-    patch=extend_schema(summary="Updates an existing Seat", request=SeatSerializer, responses={200: SeatResponseSerializer}),
+    patch=extend_schema(summary="To mark if a certain seat is broken", request=SeatSerializer, responses={200: SeatResponseSerializer}),
 )
 class SeatAPIView(APIView):
     permission_classes = [IsAuthenticated, IsManager | IsWorker]
 
-    def get(self, request, r, c, h_id):
-        seat = get_object_or_404(Seat, row_label=r, column_number=c, hall_id=h_id) # MUST match the field name
+    def get(self, request, pk):
+        seat = get_object_or_404(Seat, pk=pk) # MUST match the field name
         serializer = SeatSerializer(seat)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    def patch(self, request, r, c, h_id):
-        seat = get_object_or_404(Seat, row_label=r, column_number=c, hall_id=h_id)
+    def patch(self, request, pk):
+        seat = get_object_or_404(Seat, pk=pk)
         serializer = SeatSerializer(seat, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         updated_seat = SeatService.update_seat(
@@ -236,3 +236,30 @@ class SeatAPIView(APIView):
             "message": "Seat updated",
             "seat": SeatSerializer(updated_seat).data
         }, status=status.HTTP_200_OK)
+
+
+
+# ---------- Analytic ----------
+class TopMoviesAPIView(APIView):
+    permission_classes = [AllowAny]
+    @extend_schema(summary="Returns most popular movies based on tickets sold")
+    def get(self, request):
+        top_movies = ScreeningAnalytic.top_movies()
+        serializer = TopMovieSerializer(top_movies, many=True) # need custom output here, so we use serializer
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+
+class ShowtimeOccupancyListAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsManager]
+    @extend_schema(summary="Showing Real-time upcoming Showtime(alongside movie and hall info)")
+    def get(self, request):
+        list_showtimes = ScreeningAnalytic.showtime_occupancy()
+        return Response(list_showtimes, status=status.HTTP_200_OK)
+    
+class ShowtimeOccupancyDetailAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsManager]
+    @extend_schema(summary="Showing seats layout detail by clicking one of listed showtimes report")
+    def get(self, request, pk):
+        selected_showtime = ScreeningAnalytic.hall_seats_layout(showtime_id=pk)
+        return Response(selected_showtime, status=status.HTTP_200_OK)
+

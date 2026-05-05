@@ -63,7 +63,7 @@ class Seat(models.Model):
     is_broken = models.BooleanField(default=False)
 
     def __str__(self): 
-        return f"{self.row_label}-{self.column_number}" # makes sure the list says "A-1" (instead of: Seat object(1))
+        return f"{self.row_label}-{self.column_number} : {self.hall.name}" # makes sure the list says "A-1" (instead of: Seat object(1))
 
     class Meta: # This is about behavior and rules, not for showing text
         ordering = ["row_label", "column_number"] # make sure it's sorted (A1, A2, A3). 
