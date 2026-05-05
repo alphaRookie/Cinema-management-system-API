@@ -1,14 +1,16 @@
 from .models import Booking, Ticket
-from screening.models import Showtime, Seat
+from screening.models import Showtime, Seat, Hall, Movie
 from identity.models import User
 
 from rest_framework.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 from django.core.cache import cache
+from django.db.models import Count, Avg, Max, Min, Sum
 
 
 # "What stops this Booking from being allowed?" 
+# why dont need to create another service? a customer doesn't "make a ticket" then "make a lock." They just "Book a Movie." 
 class BookingService:
     @staticmethod # no need to assign `self`
     def make_booking(
@@ -22,19 +24,20 @@ class BookingService:
     ):
 
         # ---Setup processed input data---
-        input_showtime = showtime if showtime else (booking.showtime if booking else None) # use showtime if indeed exist, otherwise take from db if indeed exist in db, if not return None
-        if not input_showtime:
+        showtime = showtime if showtime else (booking.showtime if booking else None) # use showtime if indeed exist, otherwise take from db if indeed exist in db, if not return None
+        if not showtime:
             raise ValidationError("Showtime is required.") # if none happens
         
-        if seat_ids is None and booking: # if seat_ids not provided, but booking field in Ticket is exist
-            # If we are UPDATING (Admin), look at existing tickets
-            input_seat_ids = list(Ticket.objects.filter(user=booking.user, showtime=booking.showtime).values_list("seat_id", flat=True)) 
-        else: 
-            # If it's a new booking, we get the list from the user
-            input_seat_ids = seat_ids or []
+        if seat_ids is None: # Check if we have IDs from API, if not, try to get them from the booking object
+            if booking and booking.id: 
+                # # If the booking already exists (Update by Admin), 
+                seat_ids = list(booking.seats.values_list('id', flat=True)) # get the IDs from the M2M field
+            else: 
+                # If it's a new booking, we get the list from the user
+                seat_ids = []
         
-        input_quantity = quantity if quantity else (booking.quantity if booking else len(input_seat_ids)) # when admin didnt put quantity, count all selected seats
-        if not input_quantity:
+        quantity = quantity if quantity else (booking.quantity if booking else len(seat_ids)) # when admin didnt put quantity, count all selected seats
+        if not quantity:
             raise ValidationError("Quantity is required")
         
         if not user:
@@ -43,42 +46,61 @@ class BookingService:
 
         # Since the action is one single event, keep these 3 different logics together makes it Atomic
         # 1. Check if movie is already over or started
-        if input_showtime.end_at < timezone.now(): #if current time is after ending time
+        if showtime.end_at < timezone.now(): #if current time is after ending time
             raise ValidationError("The movie is already finished")
         
-        if input_showtime.start_at < timezone.now(): #if current time is more than starting line time
+        if showtime.start_at < timezone.now(): #if current time is more than starting line time
             raise ValidationError("The movie is already started")
         
+        
+        # 2. Check if the quantity is equal to how much seat selected
+        if quantity != len(seat_ids):
+            raise ValidationError(f"Quantity ({quantity}) must match seat count ({len(seat_ids)})")
+        
 
-        # 2. check if inputted seatid(by user) is indeed belong to that spesific hall
-        # (if showtime 1 plays in hall "IMAX 1" and range seat is 1-50, means if he choose different id, return error)
-        hall = input_showtime.hall # get the hall of that spesific showtime
-
-        seat_found = Seat.objects.filter(id__in=input_seat_ids, hall=hall)
-        if seat_found.count() != len(input_seat_ids):
+        # 3. check if inputted seatid(by user) is indeed belong to that spesific hall
+        # (if showtime 1 plays in hall "IMAX 1" and range seat is 1-50, means if user choose beside ID 1-50, return error)
+        seat_found = Seat.objects.filter(id__in=seat_ids, hall=showtime.hall)
+        if seat_found.count() != len(seat_ids):
             raise ValidationError("One or more seats do not belong to the hall for this showtime")
         
 
-        # 3. Check if the seat is already taken 
-        if input_quantity != len(input_seat_ids):
-            raise ValidationError(f"Quantity ({input_quantity}) must match seat count ({len(input_seat_ids)})")
+        # 4. find out if the spesific hall is already full
+        ticket_counts = Ticket.objects.filter(
+            booking__showtime__hall = showtime.hall, # cant do "hall=hall" bcoz Ticket table has no hall column
+            booking__showtime__movie = showtime.movie
+        ).count()
+        #count all seats for this spesific hall
+        hall_capacity = showtime.hall.seats_per_row * showtime.hall.seats_per_column
+
+        if (ticket_counts + len(seat_ids)) > hall_capacity: # case: if seats already sold 49/50, then a person buy 2 tickets
+            raise ValidationError(f"Not enough seats available. Only {hall_capacity - ticket_counts} seats left")
         
+
+        # 5. Check if the seat is already taken 
         taken_ticket = Ticket.objects.filter( #"Find me any Ticket that matches This Showtime AND is in This List of Seats"
-            booking__showtime = input_showtime, # sql way of doing "booking.showtime" (to access showtime from Ticket)
-            seat_id__in = input_seat_ids, # "__in" is for accessing list
+            booking__showtime = showtime, # sql way of doing "booking.showtime" (to access showtime from Ticket)
+            seat_id__in = seat_ids, # "__in" is for accessing list
         ).exists()
 
         if taken_ticket:
             raise ValidationError("One or more seats are already sold")
         
-        existing_seats_count = Seat.objects.filter(id__in=input_seat_ids).count()
-        if existing_seats_count != len(input_seat_ids):
+
+        # 6. check if selected seat is broken
+        # 7. Fallback: ensure all IDs numbers entered is exist in the DB
+        selected_seats = Seat.objects.filter(id__in=seat_ids) # out of these (___) selected seat IDs by user..
+
+        if selected_seats.filter(is_broken=True).exists(): #.. we filter if any of these selected seat flagged by broken is exist
+            raise ValidationError("This seat is currently under maintenance")
+        
+        if selected_seats.count() != len(seat_ids): #.. we .count() to see how many valid records, if retured valid record is not equal to how many user ids picked ...
             raise ValidationError("one or more seats is not available")
         
-
-        # 4. Check if seat is locked by someone also prevent duplicate (with REDIS)
-        for s_id in input_seat_ids:
-            lock_key = f"lock:{input_showtime.id}:{s_id}" # "Name Tag" for the specific seat and showtime to be locked ; separate by `:` semantically 
+        
+        # 8. Check if seat is locked by someone also prevent duplicate (with REDIS)
+        for s_id in seat_ids:
+            lock_key = f"lock:{showtime.id}:{s_id}" # "Name Tag" for the specific seat and showtime to be locked ; separate by `:` semantically 
             locked_by_user = cache.get(lock_key) # "The action" to find out if a certain "name tag" is already locked (Return None or Id)
 
             if locked_by_user:
@@ -89,8 +111,8 @@ class BookingService:
         
         # we lock it after checking all (Check All-then-Act All)
         # ORDER MATTER !!! THIS MUST BE AFTER ALL VALIDATIONS
-        for s_id in input_seat_ids:
-            lock_key = f"lock:{input_showtime.id}:{s_id}"
+        for s_id in seat_ids:
+            lock_key = f"lock:{showtime.id}:{s_id}"
             cache.set(lock_key, user.id, timeout=600) # Auto-delete in 600 seconds (10 mins)
 
 
@@ -101,13 +123,16 @@ class BookingService:
                 Ticket.objects.filter(booking=booking).delete() #delete ticket for this booking (delete from Ticket where booking=...)
 
                 #update existing booking (what admin input)
-                booking.quantity = input_quantity
-                booking.showtime = input_showtime
+                booking.quantity = quantity
+                booking.showtime = showtime
                 booking.final_price = booking.showtime.price * booking.quantity # price sync
                 
                 booking.save()
 
-                for s_id in input_seat_ids: # bcoz prev ticket is deleted, so admin recreate new ticket
+                # Sync M2M: This ensures the 'seats' table(M2M) matches the new 'seat_ids'(temp write field)
+                booking.seats.set(seat_ids)
+
+                for s_id in seat_ids: # bcoz prev ticket is deleted, so admin recreate new ticket
                     Ticket.objects.create(booking = booking, seat_id = s_id)
                 # Admin is manually confirming booking, so no need SeatLock
                 
@@ -119,15 +144,15 @@ class BookingService:
             # 1. makes a row in Booking table. Let's say it gets ID: 100
             new_booking = Booking.objects.create(
                 user = user,
-                showtime = input_showtime,
-                quantity = input_quantity,
-                final_price = input_showtime.price * input_quantity, # whatever user pays on this day is recorded
+                showtime = showtime,
+                quantity = quantity,
+                final_price = showtime.price * quantity, # whatever user pays on this day is recorded
                 status = "PENDING"
             )
 
-            # 2. Then `.set()` looks at that hidden bridge table
+            # 2. Then `.set()` looks at that hidden bridge table (seats to booking)
             # It says: "Make a new connection: Booking 100 <-> Seat 5 and Booking 100 <-> Seat 6"
-            new_booking.seats.set(input_seat_ids)
+            new_booking.seats.set(seat_ids)
    
         return new_booking
 
@@ -158,7 +183,7 @@ class BookingService:
             booking.status = "CONFIRMED"
             booking.save()
 
-            # # Mass create the tickets
+            # Every time this loop runs, it creates ONE separate row in the Ticket table (now each person gets his own ticket)
             for each_seat in reserved_seats:
                 Ticket.objects.create(booking=booking, seat=each_seat)
 
@@ -195,6 +220,3 @@ class BookingService:
         booking.save()
         return booking
 
-
-# why dont need to create another service?
-# a customer doesn't "make a ticket" then "make a lock." They just "Book a Movie." 
