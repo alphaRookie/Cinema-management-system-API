@@ -1,5 +1,6 @@
 from .models import Booking, Ticket
 from screening.models import Showtime, Seat, Hall, Movie
+from payment.models import Payment
 from identity.models import User
 
 from rest_framework.exceptions import ValidationError
@@ -7,6 +8,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.core.cache import cache
 from django.db.models import Count, Avg, Max, Min, Sum
+from decimal import Decimal # best for money calculation (because it's exact)
 
 
 # "What stops this Booking from being allowed?" 
@@ -220,3 +222,61 @@ class BookingService:
         booking.save()
         return booking
 
+ 
+
+class BookingAnalytic:
+    @staticmethod
+    def booking_report(): #no need param, bcoz we fetch below
+        """ Showing real-time booking report of the whole system (for upcoming show) """
+        future_report = Booking.objects.filter(showtime__start_at__gt=timezone.now()) \
+        .select_related("showtime__movie", "showtime__hall", "user") \
+        .prefetch_related("seats") \
+        .order_by("-created_at")
+
+        reports = []
+
+        for fr in future_report:
+            reports.append({
+                "movie": fr.showtime.movie.title,
+                "hall": fr.showtime.hall.name,
+                "show_start": fr.showtime.start_at.strftime("%d %b, %H:%M"),
+                "quantity": fr.quantity,
+                "seats": [f"{s.row_label}-{s.column_number}" for s in fr.seats.all()], #prefetch m2m
+                "final_price": f"{int(fr.final_price)}$",
+                "status": fr.status,
+                "email": fr.user.email,
+                "created_at": fr.created_at.strftime("%d %b %Y, %H:%M") # result: "04 May 2026, 18:34"
+            })
+        return reports
+
+
+    @staticmethod
+    def financial_report():
+        """ Showing all report related to financial """ 
+        # to show the total gross profit
+        gross_profit = Booking.objects.filter(status="CONFIRMED") \
+        .aggregate(gp=Sum("final_price")) ["gp"] or Decimal('0')
+
+        # to show gross profit each movie
+        gp_each_movie = Booking.objects.filter(status="CONFIRMED") \
+        .values("showtime__movie__title") \
+        .annotate(gp=Sum("final_price")) \
+        .order_by("-gp")
+        
+        # to show net profit (after calculating movie_licencing_fee(40%), tax(10%), maintenance & salary(30%) 
+        expenses = (gross_profit * Decimal("0.4")) + (gross_profit * Decimal("0.1")) + (gross_profit * Decimal("0.3"))
+        expected_net_profit = gross_profit - expenses
+
+
+        #wrap in Dictionary (to know which number belong to which)
+        return{
+            "expected_net_profit": f"{expected_net_profit}$" or 0,
+            "gross_profit": f"{gross_profit}$" or 0,
+            "gross_profit_movie": [
+                {
+                    "movie": mov["showtime__movie__title"], # customize return here, instead of new serializer field
+                    "profit": float(mov["gp"])
+                } for mov in gp_each_movie
+            ],
+            "expenses": f"{expenses}$"
+        } 

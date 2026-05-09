@@ -7,7 +7,7 @@ from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from .models import Booking
 from .serializers import BookingWriteSerializer, BookingReadSerializer, BookingResponseSerializer, MessageSerializer
-from .services import BookingService
+from .services import BookingService, BookingAnalytic
 from .permissions import IsManager
 
 
@@ -112,3 +112,21 @@ class AdminBookingItemAPIView(APIView):
         booking = get_object_or_404(Booking, pk=pk)
         BookingService.cancel_booking(booking)
         return Response({"message": f"Booking for {booking.user.email} was cancelled by Admin"}, status=status.HTTP_200_OK)
+
+
+
+# ---------- Analytic ----------
+class BookingReportAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsManager]
+    @extend_schema(summary="Admin: Showing real-time list of all bookings for upcoming show with full details")
+    def get(self, request):
+        report = BookingAnalytic.booking_report()
+        return Response(report, status=status.HTTP_200_OK)
+    
+
+class FinancialReportAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsManager]
+    @extend_schema(summary="Admin: Showing financial overview including gross profit and estimated net profit")
+    def get(self, request):
+        financial = BookingAnalytic.financial_report()
+        return Response(financial, status=status.HTTP_200_OK)
