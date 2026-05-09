@@ -25,6 +25,7 @@ urlpatterns = [ # we only define prefix here, routes continues on urls in screen
     path("booking", include("booking.urls")),
     path("payment", include("payment.urls")),
     path("identity", include("identity.urls")),
+    path("dashboard", include("dashboard.urls")),
 
     #Swagger/Redoc
     path('api/schema', SpectacularAPIView.as_view(), name='schema'), # This generates the "Schema" (the raw data)

@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'booking.apps.BookingConfig',
     'payment.apps.PaymentConfig',
     'identity.apps.IdentityConfig',
+    'dashboard.apps.DashboardConfig',
     'rest_framework', # DRF
     'rest_framework_simplejwt.token_blacklist', # So that people can actually log out
     'drf_spectacular', # Swagger/Redoc
