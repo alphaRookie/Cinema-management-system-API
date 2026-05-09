@@ -219,21 +219,37 @@ class ScreeningAnalytic():
         # use select_related to avoid slow "N+1" queries
         upcoming_shows = Showtime.objects.filter(start_at__gt=timezone.now()) \
         .select_related("movie", "hall") \
-        .order_by("-start_at")
+        .order_by("start_at")
 
         showtime_report = [] #empty tray to store collections
 
         for show in upcoming_shows: 
+            # find occupancy rate for each show
             capacity = show.hall.seats_per_row * show.hall.seats_per_column # use 'show.' to calculate the math for each individual movie slot
             ticket_counts = show.booking_set.filter(status="CONFIRMED").aggregate(total_seat=Sum("quantity")) ["total_seat"] or 0 #get "all confirmed booking/ticket for this showtime", then sum it --backward logic #type:ignore
             occupancy_rate = (ticket_counts/capacity)*100 if capacity>0 else 0
 
+            # customize display
             time_str = show.start_at.strftime("%d %b %Y, %H:%M") #convert to readable time
             display_text = f"[{time_str}] {show.movie.title} - {show.hall.name} ({int(occupancy_rate)}% Full)" # not use class name (showtime)
+                       
+            # create the countdown
+            cd = show.start_at - timezone.now() 
+            total_secs = cd.total_seconds()
+            total_mins = int(total_secs / 60) # explicit mention int(), otherwise it assumes float (bcoz of "/")
+            hours = total_mins // 60 # example: 150//60 is 2, not 2.5 (ignores decimal)
+            minutes = total_mins % 60 # example: 150%60 is 30 (remainder from closest 60*2=120)
+
+            # race conditions 
+            if total_secs <= 0:
+                countdown_msg = "Started"
+            else:
+                countdown_msg = f"Start in {hours}h {minutes}m"
 
             showtime_report.append({
                 "id": show.id,
-                "screening": display_text
+                "screening": display_text,
+                "countdown": countdown_msg
             })
         return showtime_report
 
