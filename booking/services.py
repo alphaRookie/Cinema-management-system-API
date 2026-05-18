@@ -7,7 +7,7 @@ from rest_framework.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 from django.core.cache import cache
-from django.db.models import Count, Avg, Max, Min, Sum
+from django.db.models import Count, Avg, Max, Min, Sum, Q, F
 from decimal import Decimal # best for money calculation (because it's exact)
 
 
@@ -268,6 +268,29 @@ class BookingAnalytic:
         expected_net_profit = gross_profit - expenses
 
 
+        # To show potential loss of unsold seats
+        showtimes = Showtime.objects.select_related("hall", "movie").annotate(
+            capacity = F("hall__seats_per_row") * F("hall__seats_per_column"), # calculate directly in DB before giving result
+            sold_pershow = Count("booking", filter=Q(booking__status="CONFIRMED")) # reverse relation: count how many booking(that already confirmed) in that showtime table
+        )
+        
+        show = []
+        for s in showtimes:
+            unsold_seats = s.capacity - s.sold_pershow #why pylance complains? these attibute only exist for a split second while the query is running #type:ignore
+            potential_loss = unsold_seats * s.price 
+
+            show.append({
+                "id": s.id,
+                "movie": s.movie.title,
+                "hall": s.hall.name,
+                "price": s.price,
+                "occupancy": f"{s.sold_pershow}/{s.capacity}", #type:ignore 
+                "unsold_seats": unsold_seats,
+                "potential_loss": f"{potential_loss}$",
+                "max_revenue": f"{s.price * s.capacity}$" #type:ignore
+            })
+            
+
         #wrap in Dictionary (to know which number belong to which)
         return{
             "expected_net_profit": f"{expected_net_profit}$" or 0,
@@ -275,8 +298,9 @@ class BookingAnalytic:
             "gross_profit_movie": [
                 {
                     "movie": mov["showtime__movie__title"], # customize return here, instead of new serializer field
-                    "profit": float(mov["gp"])
+                    "profit": f"{mov["gp"]}$"
                 } for mov in gp_each_movie
             ],
-            "expenses": f"{expenses}$"
+            "expenses": f"{expenses}$",
+            "potential_loss": show
         } 
