@@ -9,7 +9,7 @@ from django.db import transaction
 from django.db.models import Count, Avg, Max, Min, Sum
 from django.utils import timezone
 from django.core.cache import cache
-from django_redis.cache import RedisCache
+from django.utils.dateparse import parse_date
 
 
 class MovieService:
@@ -199,17 +199,41 @@ class SeatService:
 # The output is focused on analyze instead of just CRUD
 class ScreeningAnalytic():
     @staticmethod
-    def top_movies():
+    def top_movies(period=None, startdate_input=None, enddate_input=None):
         """ Showing the most picked movies by customer """
+
+        queryset = Booking.objects.filter(status="CONFIRMED")
+        
+        # Dropdown options period
+        if period == "day":
+            starting_time = timezone.now() - timedelta(days=1)
+            queryset = queryset.filter(created_at__gte=starting_time) #catch any ticket within 24 hours
+        elif period == "week":
+            starting_time = timezone.now() - timedelta(weeks=1)
+            queryset = queryset.filter(created_at__gte=starting_time)
+        elif period == "month":
+            starting_time = timezone.now() - timedelta(days=30)
+            queryset = queryset.filter(created_at__gte=starting_time)
+
+        # Manual period input by user
+        elif startdate_input or enddate_input:
+            if startdate_input: #check if user send it
+                start_date = parse_date(startdate_input) # take string like "2026-05-18" and turn it into real Python date object(for DB)
+                if start_date: #check if parse_date actually success
+                    queryset = queryset.filter(created_at__date__gte=start_date)
+            
+            if enddate_input:
+                end_date = parse_date(enddate_input)
+                if end_date:
+                    queryset = queryset.filter(created_at__date__lte=end_date) # need __date__ because created_at has hours and minutes, but the input start_date and end_date do not. Adding it cuts off the hours and minutes so they can match up
+
+
         # Use 'values' to group by the Movie Title (via Showtime) ; JOIN the spesific target column only (what we want to show)
         # Use 'annotate' to Sum the quantity for "each group" of Title
-        return Booking.objects.filter(status="CONFIRMED") \
-            .values("showtime__movie__title") \
+        return queryset.values("showtime__movie__title") \
             .annotate(total_sold=Sum("quantity")) \
             .order_by("-total_sold") # from highest
     
-    # later add dynamic filter by day, week, month
-    # also maybe add way to take only top 5 for admin? bcoz rn i meant making this for both everyone
     
 
     @staticmethod

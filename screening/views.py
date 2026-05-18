@@ -11,7 +11,8 @@ from .serializers import MovieSerializer, HallWriteSerializer, HallReadSerialize
 from .services import MovieService, HallService, ShowtimeService, SeatService, ScreeningAnalytic
 from .permissions import IsManager, IsWorker, IsManagerOrReadonly
 from django.shortcuts import get_object_or_404
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter
+from drf_spectacular.types import OpenApiTypes
 
 
 @extend_schema_view(
@@ -242,9 +243,32 @@ class SeatAPIView(APIView):
 # ---------- Analytic ----------
 class TopMoviesAPIView(APIView):
     permission_classes = [AllowAny]
-    @extend_schema(summary="Returns most popular movies based on tickets sold")
+    @extend_schema(
+        summary="Returns popular movies based on presets or custom date ranges",
+        parameters=[
+            OpenApiParameter(name="period", type=OpenApiTypes.STR, location=OpenApiParameter.QUERY, description="Filter top movies by period", required=False, enum=["day", "week", "month"]),
+            OpenApiParameter(name="start_date", description="Custom range start: YYYY-MM-DD", required=False, type=str),
+            OpenApiParameter(name="end_date", description="Custom range end: YYYY-MM-DD", required=False, type=str),
+        ]
+    )
     def get(self, request):
-        top_movies = ScreeningAnalytic.top_movies()
+        period = request.query_params.get("period", None) # Get the "period" from the URL, default to "None" if missing
+        start_date_str = request.query_params.get("start_date", None)
+        end_date_str = request.query_params.get("end_date", None)
+
+        if period and (start_date_str or end_date_str):
+            return Response({"error": "You can only either choose a preset period OR custom dates"})
+
+        # Valid options check
+        if period not in ["day", "week", "month", None]:
+            return Response({"error": "Invalid period. Choose from: day, week, month."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        top_movies = ScreeningAnalytic.top_movies( # Fetch data using the flexible method
+            period=period, 
+            startdate_input=start_date_str, 
+            enddate_input=end_date_str
+        )
+
         serializer = TopMovieSerializer(top_movies, many=True) # need custom output here, so we use serializer
         return Response(serializer.data, status=status.HTTP_200_OK)
     
