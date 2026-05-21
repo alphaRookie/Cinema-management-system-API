@@ -263,6 +263,9 @@ class TopMoviesAPIView(APIView):
         if period not in ["day", "week", "month", None]:
             return Response({"error": "Invalid period. Choose from: day, week, month."}, status=status.HTTP_400_BAD_REQUEST)
         
+        if start_date_str > end_date_str:
+            return Response({"error": "You can't set start date ahead of end date"})
+
         top_movies = ScreeningAnalytic.top_movies( # Fetch data using the flexible method
             period=period, 
             startdate_input=start_date_str, 

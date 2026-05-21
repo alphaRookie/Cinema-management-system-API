@@ -215,8 +215,8 @@ class ScreeningAnalytic():
             starting_time = timezone.now() - timedelta(days=30)
             queryset = queryset.filter(created_at__gte=starting_time)
 
-        # Manual period input by user
-        elif startdate_input or enddate_input:
+        # Manual period input by user (separate "if" block to to act as two diff filter --always run no matter above)
+        if startdate_input or enddate_input:
             if startdate_input: #check if user send it
                 start_date = parse_date(startdate_input) # take string like "2026-05-18" and turn it into real Python date object(for DB)
                 if start_date: #check if parse_date actually success
