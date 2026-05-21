@@ -3,7 +3,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated # only logged-in users can book or see bookings
 from django.shortcuts import get_object_or_404
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter
+from drf_spectacular.types import OpenApiTypes
 
 from .models import Booking
 from .serializers import BookingWriteSerializer, BookingReadSerializer, BookingResponseSerializer, MessageSerializer
@@ -126,7 +127,28 @@ class BookingReportAPIView(APIView):
 
 class FinancialReportAPIView(APIView):
     permission_classes = [IsAuthenticated, IsManager]
-    @extend_schema(summary="Admin: Showing financial overview including gross profit and estimated net profit")
+    @extend_schema(
+        summary="Admin: Showing financial overview including gross profit and estimated net profit",
+        parameters=[
+            OpenApiParameter(name="period", type=OpenApiTypes.STR, location=OpenApiParameter.QUERY, description="Filter financial by period", required=False, enum=["day", "week", "month"]),
+            OpenApiParameter(name="start_date", description="Custom range start: YYYY-MM-DD", required=False, type=str),
+            OpenApiParameter(name="end_date", description="Custom range end: YYYY-MM-DD", required=False, type=str),
+        ]
+    )
     def get(self, request):
-        financial = BookingAnalytic.financial_report()
+        period = request.query_params.get("period", None)
+        start_date_str = request.query_params.get("start_date", None)
+        end_date_str = request.query_params.get("end_date", None)
+
+        if period and (start_date_str or end_date_str):
+            return Response({"error": "You can only either choose a preset period OR custom dates"})
+
+        if period not in ["day", "week", "month", None]:
+            return Response({"error": "Invalid period. Choose from: day, week, month."}, status=status.HTTP_400_BAD_REQUEST)
+
+        financial = BookingAnalytic.financial_report(
+            period=period,
+            startdate_input=start_date_str,
+            enddate_input=end_date_str
+        )
         return Response(financial, status=status.HTTP_200_OK)

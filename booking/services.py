@@ -2,6 +2,8 @@ from .models import Booking, Ticket
 from screening.models import Showtime, Seat, Hall, Movie
 from payment.models import Payment
 from identity.models import User
+from datetime import timedelta
+from django.utils.dateparse import parse_date
 
 from rest_framework.exceptions import ValidationError
 from django.db import transaction
@@ -251,15 +253,45 @@ class BookingAnalytic:
 
 
     @staticmethod
-    def financial_report():
+    def financial_report(period=None, startdate_input=None, enddate_input=None):
         """ Showing all report related to financial """ 
+
+        booking_qs = Booking.objects.filter(status="CONFIRMED")
+        showtime_qs = Showtime.objects.select_related("hall", "movie")
+        
+        if period == "day":
+            starting_time = timezone.now() - timedelta(days=1)
+            booking_qs = booking_qs.filter(created_at__gte=starting_time)
+            showtime_qs = showtime_qs.filter(start_at__gte=starting_time)
+        elif period == "week":
+            starting_time = timezone.now() - timedelta(weeks=1)
+            booking_qs = booking_qs.filter(created_at__gte=starting_time)
+            showtime_qs = showtime_qs.filter(start_at__gte=starting_time)
+        elif period == "month":
+            starting_time = timezone.now() - timedelta(days=30)
+            booking_qs = booking_qs.filter(created_at__gte=starting_time)
+            showtime_qs = showtime_qs.filter(start_at__gte=starting_time)
+
+        # Manual period input by user
+        elif startdate_input or enddate_input:
+            if startdate_input: #check if user send it
+                start_date = parse_date(startdate_input) # take string like "2026-05-18" and turn it into real Python date object(for DB)
+                if start_date: #check if parse_date actually success
+                    booking_qs = booking_qs.filter(created_at__date__gte=start_date) # need __date__ because created_at has hours and minutes, but the input start_date and end_date do not. Adding it cuts off the hours and minutes so they can match up
+                    showtime_qs = showtime_qs.filter(start_at__date__gte=start_date)
+            
+            if enddate_input:
+                end_date = parse_date(enddate_input)
+                if end_date:
+                    booking_qs = booking_qs.filter(created_at__date__lte=end_date)
+                    showtime_qs = showtime_qs.filter(start_at__date__lte=end_date) #shows what are start before inputted "end_date"
+
+
         # to show the total gross profit
-        gross_profit = Booking.objects.filter(status="CONFIRMED") \
-        .aggregate(gp=Sum("final_price")) ["gp"] or Decimal('0')
+        gross_profit =  booking_qs.aggregate(gp=Sum("final_price")) ["gp"] or Decimal('0')
 
         # to show gross profit each movie
-        gp_each_movie = Booking.objects.filter(status="CONFIRMED") \
-        .values("showtime__movie__title") \
+        gp_each_movie = booking_qs.values("showtime__movie__title") \
         .annotate(gp=Sum("final_price")) \
         .order_by("-gp")
         
@@ -269,9 +301,10 @@ class BookingAnalytic:
 
 
         # To show potential loss of unsold seats
-        showtimes = Showtime.objects.select_related("hall", "movie").annotate(
+        showtimes = showtime_qs.annotate(
             capacity = F("hall__seats_per_row") * F("hall__seats_per_column"), # calculate directly in DB before giving result
-            sold_pershow = Count("booking", filter=Q(booking__status="CONFIRMED")) # reverse relation: count how many booking(that already confirmed) in that showtime table
+            # reverse relation: count how many booking(that already confirmed) in that showtime table
+            sold_pershow = Count("booking", filter=Q(booking__status="CONFIRMED", booking__in=booking_qs)) # says "Is it confirmed? AND Is it part of this day/week/moths's filtered bookings?"
         )
         
         show = []
