@@ -119,9 +119,33 @@ class AdminBookingItemAPIView(APIView):
 # ---------- Analytic ----------
 class BookingReportAPIView(APIView):
     permission_classes = [IsAuthenticated, IsManager]
-    @extend_schema(summary="Admin: Showing real-time list of all bookings for upcoming show with full details")
+    @extend_schema(
+        summary="Admin: Showing real-time list of all bookings for upcoming show with full details",
+        parameters=[
+            OpenApiParameter(name="period", type=OpenApiTypes.STR, location=OpenApiParameter.QUERY, description="Filter booking by period", required=False, enum=["day", "week", "month"]),
+            OpenApiParameter(name="start_date", description="Custom range start: YYYY-MM-DD", required=False, type=str),
+            OpenApiParameter(name="end_date", description="Custom range end: YYYY-MM-DD", required=False, type=str),
+        ]
+    )
     def get(self, request):
-        report = BookingAnalytic.booking_report()
+        period = request.query_params.get("period", None)
+        start_date_str = request.query_params.get("start_date", None)
+        end_date_str = request.query_params.get("end_date", None)
+
+        if period and (start_date_str or end_date_str):
+            return Response({"error": "You can only either choose a preset period OR custom dates"})
+
+        if period not in ["day", "week", "month", None]:
+            return Response({"error": "Invalid period. Choose from: day, week, month."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if start_date_str > end_date_str:
+            return Response({"error": "You can't set start date ahead of end date"})
+
+        report = BookingAnalytic.booking_report(
+            period=period,
+            startdate_input=start_date_str,
+            enddate_input=end_date_str
+        )
         return Response(report, status=status.HTTP_200_OK)
     
 

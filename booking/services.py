@@ -228,27 +228,61 @@ class BookingService:
 
 class BookingAnalytic:
     @staticmethod
-    def booking_report(): #no need param, bcoz we fetch below
+    def booking_report(period=None, startdate_input=None, enddate_input=None): 
         """ Showing real-time booking report of the whole system (for upcoming show) """
-        future_report = Booking.objects.filter(showtime__start_at__gt=timezone.now()) \
-        .select_related("showtime__movie", "showtime__hall", "user") \
+
+        # creates empty queryset (choice: realtime or past)
+        queryset = Booking.objects.none() 
+
+        if period is None:
+            queryset = Booking.objects.filter(showtime__start_at__gt=timezone.now()) # here "queryset" acts as realtime (if true)
+
+        elif period == "day":
+            starting_time = timezone.now() - timedelta(days=1)
+            queryset = Booking.objects.filter(created_at__gte=starting_time) # in all elif part "queryset" acts as past
+        elif period == "week":
+            starting_time = timezone.now() - timedelta(weeks=1)
+            queryset = Booking.objects.filter(created_at__gte=starting_time)
+        elif period == "month":
+            starting_time = timezone.now() - timedelta(days=30)
+            queryset = Booking.objects.filter(created_at__gte=starting_time)
+
+        # manual input date
+        if startdate_input or enddate_input:
+            input_qs = Booking.objects.all() # we have "if" twice below, cant do "Booking.objects.filter()" twice
+
+            if startdate_input: #check if user send it
+                start_date = parse_date(startdate_input) 
+                if start_date: #check if parse_date actually success
+                    queryset = input_qs.filter(created_at__date__gte=start_date) 
+            
+            if enddate_input:
+                end_date = parse_date(enddate_input)
+                if end_date:
+                    queryset = input_qs.filter(created_at__date__lte=end_date)
+
+
+        # now the "queryset" is filtered by spesific date
+        queryset = queryset.select_related("showtime__movie", "showtime__hall", "user") \
         .prefetch_related("seats") \
         .order_by("-created_at")
 
+
         reports = []
 
-        for fr in future_report:
+        for qs in queryset:
             reports.append({
-                "movie": fr.showtime.movie.title,
-                "hall": fr.showtime.hall.name,
-                "show_start": fr.showtime.start_at.strftime("%d %b, %H:%M"),
-                "quantity": fr.quantity,
-                "seats": [f"{s.row_label}-{s.column_number}" for s in fr.seats.all()], #prefetch m2m
-                "final_price": f"{int(fr.final_price)}$",
-                "status": fr.status,
-                "email": fr.user.email,
-                "created_at": fr.created_at.strftime("%d %b %Y, %H:%M") # result: "04 May 2026, 18:34"
+                "movie": qs.showtime.movie.title,
+                "hall": qs.showtime.hall.name,
+                "show_start": qs.showtime.start_at.strftime("%d %b, %H:%M"),
+                "quantity": qs.quantity,
+                "seats": [f"{s.row_label}-{s.column_number}" for s in qs.seats.all()], #prefetch m2m
+                "final_price": f"{int(qs.final_price)}$",
+                "status": qs.status,
+                "email": qs.user.email,
+                "created_at": qs.created_at.strftime("%d %b %Y, %H:%M") # result: "04 May 2026, 18:34"
             })
+        
         return reports
 
 
