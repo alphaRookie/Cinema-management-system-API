@@ -201,7 +201,7 @@ class BookingService:
     @staticmethod
     def cancel_booking(booking: Booking):  
 
-        # if user intendedly cancel the ticket (that already bought) and ask for refund, set CANCELLED
+        # if user intendedly cancel the ticket (that already paid) and ask for refund, set to REFUNDED
         if booking.status == "CONFIRMED":
             if booking.showtime.start_at < timezone.now():
                 raise ValidationError("Movie is already started, you can't cancel the ticket now")
@@ -210,7 +210,7 @@ class BookingService:
                 raise ValidationError("The showtime has finished")
             
             Ticket.objects.filter(booking=booking).delete() # only delete ticket for this booking
-            booking.status = "CANCELLED"
+            booking.status = "REFUNDED"
 
 
         # if within 10 mins seatlock: user cancel the payment, so delete seatlock, and set status to CANCELLED
@@ -267,6 +267,7 @@ class BookingAnalytic:
         .prefetch_related("seats") \
         .order_by("-created_at")
 
+        refund_count = queryset.filter(status="REFUNDED").count()
 
         reports = []
 
@@ -283,14 +284,17 @@ class BookingAnalytic:
                 "created_at": qs.created_at.strftime("%d %b %Y, %H:%M") # result: "04 May 2026, 18:34"
             })
         
-        return reports
+        return{
+            "booking_report": reports,
+            "total_refund": refund_count
+        }
 
 
     @staticmethod
     def financial_report(period=None, startdate_input=None, enddate_input=None):
         """ Showing all report related to financial """ 
 
-        booking_qs = Booking.objects.filter(status="CONFIRMED")
+        booking_qs = Booking.objects.filter(status__in=["CONFIRMED", "REFUNDED"]) # hold 2 values insted of just 1
         showtime_qs = Showtime.objects.select_related("hall", "movie")
         
         if period == "day":
@@ -320,12 +324,15 @@ class BookingAnalytic:
                     booking_qs = booking_qs.filter(created_at__date__lte=end_date)
                     showtime_qs = showtime_qs.filter(start_at__date__lte=end_date) #shows what are start before inputted "end_date"
 
+        # separate the data sets
+        confirmed_bookings = booking_qs.filter(status="CONFIRMED")
+        refunded_bookings = booking_qs.filter(status="REFUNDED")
 
         # to show the total gross profit
-        gross_profit =  booking_qs.aggregate(gp=Sum("final_price")) ["gp"] or Decimal('0')
+        gross_profit =  confirmed_bookings.aggregate(gp=Sum("final_price")) ["gp"] or Decimal('0')
 
         # to show gross profit each movie
-        gp_each_movie = booking_qs.values("showtime__movie__title") \
+        gp_each_movie = confirmed_bookings.values("showtime__movie__title") \
         .annotate(gp=Sum("final_price")) \
         .order_by("-gp")
         
@@ -333,14 +340,17 @@ class BookingAnalytic:
         expenses = (gross_profit * Decimal("0.4")) + (gross_profit * Decimal("0.1")) + (gross_profit * Decimal("0.3"))
         expected_net_profit = gross_profit - expenses
 
-
         # To show potential loss of unsold seats
         showtimes = showtime_qs.annotate(
             capacity = F("hall__seats_per_row") * F("hall__seats_per_column"), # calculate directly in DB before giving result
             # reverse relation: count how many booking(that already confirmed) in that showtime table
             sold_pershow = Count("booking", filter=Q(booking__status="CONFIRMED", booking__in=booking_qs)) # says "Is it confirmed? AND Is it part of this day/week/moths's filtered bookings?"
         )
+
+        # Need to track it clearly like in Finance, we dont want it considered as unsold_chair
+        total_refunded = refunded_bookings.aggregate(tr=Sum("final_price")) ["tr"] or Decimal("0")
         
+
         show = []
         for s in showtimes:
             unsold_seats = s.capacity - s.sold_pershow #why pylance complains? these attibute only exist for a split second while the query is running #type:ignore
@@ -362,6 +372,7 @@ class BookingAnalytic:
         return{
             "expected_net_profit": f"{expected_net_profit}$" or 0,
             "gross_profit": f"{gross_profit}$" or 0,
+            "total_refunded": f"{total_refunded}$" or 0,
             "gross_profit_movie": [
                 {
                     "movie": mov["showtime__movie__title"], # customize return here, instead of new serializer field

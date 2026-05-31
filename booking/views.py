@@ -138,8 +138,9 @@ class BookingReportAPIView(APIView):
         if period not in ["day", "week", "month", None]:
             return Response({"error": "Invalid period. Choose from: day, week, month."}, status=status.HTTP_400_BAD_REQUEST)
         
-        if start_date_str > end_date_str:
-            return Response({"error": "You can't set start date ahead of end date"})
+        if start_date_str and end_date_str:
+            if start_date_str > end_date_str:
+                return Response({"error": "You can't set start date ahead of end date"})
 
         report = BookingAnalytic.booking_report(
             period=period,

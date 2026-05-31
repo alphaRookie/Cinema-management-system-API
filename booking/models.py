@@ -10,6 +10,7 @@ class Booking(models.Model):
         CONFIRMED = "CONFIRMED", _("Confirmed")
         CANCELLED = "CANCELLED", _("Cancelled")
         EXPIRED = "EXPIRED", _("Expired")
+        REFUNDED = "REFUNDED", _("REFUNDED")
 
     id: int
     showtime = models.ForeignKey("screening.Showtime", on_delete=models.CASCADE)
