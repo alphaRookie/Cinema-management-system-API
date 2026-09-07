@@ -5,7 +5,6 @@ name = "pypi"
 
 [packages]
 django = "*"
-psycopg2 = "*"
 djangorestframework = "*"
 stripe = "*"
 python-dotenv = "*"
@@ -14,6 +13,7 @@ django-redis = "*"
 gunicorn = "*"
 whitenoise = "*"
 drf-spectacular = "*"
+psycopg2-binary = "*"
 
 [dev-packages]
 
