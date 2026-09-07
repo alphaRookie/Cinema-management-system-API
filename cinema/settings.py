@@ -10,38 +10,39 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+
+# --------------- Path and .env ---------------
 from pathlib import Path
 import os
 from dotenv import load_dotenv
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+# Points to project root folder containing manage.py and .env
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
+load_dotenv(BASE_DIR / ".env") # so it recognize that the key is stored in .env 
 
 
-# --- Deployment part ---
-load_dotenv() # so it recognize that the key is stored in .env 
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-%)5vn03xok9@k)&_b9b=6%rox5pwje*3-gtz+8#@a_!h71i0&^') #fallback if .env deleted
+
+# --------------- Security & Deployment ---------------
+
+# .environ will auto-throw an error if value in .env missing (no need manually check `if not SECRET_KEY:`)
+# while .getenv is optional variable
+SECRET_KEY = os.environ['SECRET_KEY'] 
 
 # Switch DEBUG based on environment (stays True in laptop(shows the error), but changed to False in Railway(hide error))
-# like saying "Assume I'm debugging unless I specifically tell you otherwise."
+# in .env set to "DEBUG=False" to be Production ; "DEBUG=True" to be Local
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
 # When we deploy to Railway or AWS, Django needs to know which URLs are allowed to talk to it (need to change to real Domain)
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*').split(',')
+ALLOWED_HOSTS = [host.strip() for host in os.getenv('ALLOWED_HOSTS', '*').split(',') if host.strip()] # cleans up accidental spaces and trailing commas automatically
 
 # Only trust the reverse proxy (Railway/AWS) headers for Https
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 
-if not SECRET_KEY and not DEBUG:
-    raise Exception(f"SECRET_KEY must be set in production")
 
+# --------------- Application definition ---------------
 
-# Application definition
 # this part is like (config/app -> provider) in laravel
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -50,11 +51,15 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'screening.apps.ScreeningConfig', # we register manually, so django can access
+
+    # we register manually, so django can access (custom apps)
+    'screening.apps.ScreeningConfig', 
     'booking.apps.BookingConfig',
     'payment.apps.PaymentConfig',
     'identity.apps.IdentityConfig',
     'dashboard.apps.DashboardConfig',
+
+    # third part apps
     'rest_framework', # DRF
     'rest_framework_simplejwt.token_blacklist', # So that people can actually log out
     'drf_spectacular', # Swagger/Redoc
@@ -96,24 +101,26 @@ TEMPLATES = [
 WSGI_APPLICATION = 'cinema.wsgi.application'
 
 
-# Database
-# https://docs.djangoproject.com/en/6.0/ref/settings/#databases
+
+# --------------- Database ---------------
 
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME', 'cinema_db'),
-        'USER': os.getenv('DB_USER', 'alfa'),
-        'PASSWORD': os.getenv('DB_PASSWORD', 'alfaruqi2005.'),
-        'HOST': os.getenv('DB_HOST', '127.0.0.1'), # Switch to 'db' in Docker
-        'PORT': os.getenv('DB_PORT', '5432'),
+        'NAME': os.environ['DB_NAME'],
+        'USER': os.environ['DB_USER'],
+        'PASSWORD': os.environ['DB_PASSWORD'],
+        'HOST': os.environ['DB_HOST'],
+        'PORT': os.environ['DB_PORT'],
     }
 }
 
+# Tell Django: "Don't use the default user. Use the one I made in the 'identity' app."
+AUTH_USER_MODEL = 'identity.User'
 
-# django built-in auth validator (we can make custom and override this)
-# like "app/Http/Middleware"
-# https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
+
+
+# --------------- Password validation & Internationalization ---------------
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -131,19 +138,14 @@ AUTH_PASSWORD_VALIDATORS = [
 
 
 # Internationalization
-# https://docs.djangoproject.com/en/6.0/topics/i18n/
-
 LANGUAGE_CODE = 'en-us'
-
 TIME_ZONE = 'UTC'
-
 USE_I18N = True
-
 USE_TZ = True
 
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/6.0/howto/static-files/
+
+# --------------- Static files (CSS, JavaScript, Images) and Media ---------------
 
 # Static Files (Admin panel CSS/JS)
 STATIC_URL = '/static/'
@@ -155,27 +157,18 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 
 
-# Stripe
+# --------------- Stripe ---------------
 import stripe
 
-load_dotenv() # this reads the .env file
-
 # If they are missing, we WANT it to fail so we don't accidentally use a wrong account
-STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
-STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY")
+STRIPE_SECRET_KEY = os.environ["STRIPE_SECRET_KEY"]
+STRIPE_PUBLISHABLE_KEY = os.environ["STRIPE_PUBLISHABLE_KEY"]
+
 stripe.api_key = STRIPE_SECRET_KEY # We tell the Stripe library to use our secret key
 
-if not STRIPE_SECRET_KEY:
-    raise ValueError("STRIPE_SECRET_KEY is missing! Check your .env file.") # This prevents the app from starting if we forgot the key
 
 
-
-# Tell Django: "Don't use the default user. Use the one I made in the 'identity' app."
-AUTH_USER_MODEL = 'identity.User'
-
-
-
-# Django Rest Framework Configuration
+# --------------- DRF and JWT Configuration ---------------
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -195,14 +188,15 @@ SIMPLE_JWT = {
 
 
 
-# REDIS
-REDIS_HOST = os.getenv('REDIS_HOST', '127.0.0.1')# This is like the address of the house
-REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', '') # This is like key to the front door
+# --------------- REDIS ---------------
+REDIS_HOST = os.environ['REDIS_HOST'] # the address of the apartment
+REDIS_PORT = os.environ['REDIS_PORT'] # the flat number
+REDIS_PASSWORD = os.environ['REDIS_PASSWORD'] # the key to enter that door
 
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:6379/1", # /1 means database #1 in Redis
+        "LOCATION": f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/1", # '/1' makes reserve place only for temp seatlock (/2, etc can be created for other actions)
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
         }
@@ -211,10 +205,9 @@ CACHES = {
 
 
 
-# Swagger/Redoc docs
+# --------------- Swagger/Redoc docs ---------------
 SPECTACULAR_SETTINGS = {
     'TITLE': 'Cinema Management System API',
-    'DESCRIPTION': 'High-concurrency booking engine with Redis locking and Stripe integration.',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
 }
