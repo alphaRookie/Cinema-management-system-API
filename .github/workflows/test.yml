@@ -1,11 +1,10 @@
-name: Django test CI
+name: Cinema test CI
 
 # 1. WHEN to run: Only when someone makes a Pull Request or Push to the main branch 
 on:
-  push: 
-    branches: ["main"] # This limits only when action done on main branch
+  workflow_dispatch: # Allows to manually click "Run" in GitHub UI
   pull_request:
-    branches: ["main"] 
+    branches: ["main"] # Only when merge to Main 
 
 jobs:
   test:
@@ -20,34 +19,30 @@ jobs:
       - name: Create fake temp .env
         run: |
           touch .env
-          echo "SECRET_KEY=anyrandomstringtoputabcdefghijklmnopqrstuvwxyz" >> .env
+          echo "SECRET_KEY=anyrandomstringabcdefghijklmnopqrstuvwxyz" >> .env
+          echo "DEBUG=True" >> .env
+          echo "ALLOWED_HOSTS=localhost,127.0.0.1,web" >> .env
+
           echo "DB_NAME=cinema_db" >> .env
-          echo "DB_USER=alfa" >> .env
-          echo "DB_PASSWORD=alfaruqi2005." >> .env
+          echo "DB_USER=test_user" >> .env
+          echo "DB_PASSWORD=test_password_123" >> .env
           echo "DB_HOST=db" >> .env
           echo "DB_PORT=5432" >> .env
+
           echo "REDIS_HOST=redis" >> .env
+          echo "REDIS_PORT=6379" >> .env
           echo "REDIS_PASSWORD=" >> .env
-          echo "STRIPE_PUBLIC_KEY=fakekey" >> .env
-          echo "STRIPE_SECRET_KEY=sk_test_fake" >> .env
+
+          echo "STRIPE_PUBLISHABLE_KEY=pk_test_dummy" >> .env
+          echo "STRIPE_SECRET_KEY=sk_test_dummy" >> .env
 
       - name: Build and Run Tests
-        # A. Build Docker images using Dockerfile
-        # B. Start services 
-        # Give Postgres 20 seconds to start its engine
-        # C. If this fails, the logs will tell us exactly why
-        # D. Run Django tests inside the 'web' container
-        # E. Shut everything down when finished
+        # 1. Build images and start services in background
+        # 2. Verify PostgreSQL is ready using the test_user from .env
+        # 3. Run Django unit tests inside the web container (exec -T reuses the running web)
+        # 4. Clean up containers and volumes when done
         run: |
-          docker compose build
-          docker compose up -d db redis
-
-          echo "Waiting for database to initialize..."
-          sleep 20
-
-          docker compose exec -T db pg_isready -U alfa
-          docker compose run web python manage.py test
+          docker compose up -d --build
+          docker compose exec -T db pg_isready -U test_user -d cinema_db
+          docker compose exec -T web python manage.py test
           docker compose down -v
-
-
-# In yaml, maximum space each level is 2
