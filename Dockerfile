@@ -7,12 +7,6 @@ ENV PYTHONUNBUFFERED=1
 # Set the folder where the code will live in the container
 WORKDIR /app
 
-# We need these to build the "psycopg2" database driver (slim version)
-RUN apt-get update && apt-get install -y \
-    gcc \
-    python3-dev \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
 
 # Install Pipenv (in-exchange of requirements.txt)
 RUN pip install --no-cache-dir pipenv
@@ -28,5 +22,5 @@ RUN pipenv install --system --deploy
 # Copy the rest of my project code
 COPY . .
 
-# Start the Django server
+# Start the Django server (Production)
 CMD ["sh", "-c", "python manage.py collectstatic --noinput && gunicorn --workers 3 --bind 0.0.0.0:8000 cinema.wsgi:application"]
