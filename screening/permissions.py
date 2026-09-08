@@ -14,7 +14,7 @@ class IsManagerOrReadonly(permissions.BasePermission):
             return True
         return (# Otherwise if the request is a "Write" method
             request.user.is_authenticated and
-            user.groups.filter(name="Manager").exists()
+            user.is_superuser or user.groups.filter(name="Manager").exists()
         ) 
 
 
@@ -22,7 +22,7 @@ class IsManager(permissions.BasePermission):
     """ Allows access only to users in the 'Manager' group. """
     def has_permission(self, request, view):
         user = cast(User, request.user) # make sure pylance know that user has group attribute
-        return user.groups.filter(name="Manager").exists() 
+        return user.is_superuser or user.groups.filter(name="Manager").exists() 
 
 
 class IsWorker(permissions.BasePermission):

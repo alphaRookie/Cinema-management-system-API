@@ -6,7 +6,7 @@ class IsManager(permissions.BasePermission):
     """ Allows access only to users in the 'Manager' group. """
     def has_permission(self, request, view):
         user = cast(User, request.user) # make sure pylance know that user has group attribute
-        return user.groups.filter(name="Manager").exists() 
+        return user.is_superuser or user.groups.filter(name="Manager").exists() 
 
 class IsPaymentOwner(permissions.BasePermission):
     """ Keep customer lock their own data """
