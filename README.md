@@ -102,50 +102,48 @@ This project uses **OpenAPI 3.0** to provide self-documenting, interactive API m
 
 ## Installation & Setup
 
-Before you start, make sure you have the following installed:
-
-### Tech Stack
-
-* **Backend:** Python 3.13, Django, Django Rest Framework (DRF)
-* **Database:** PostgreSQL
-* **Cache/Lock:** Redis
-* **Auth:** JWT (SimpleJWT), Blacklist
-* **Payments:** Stripe API
-* **Infrastructure:** Docker, GitHub Actions(CI/CD), Railway
-* **Server:** Gunicorn & WhiteNoise
-* **API Testing:** Postman (for testing protected endpoints via Bearer Tokens)
-* **API Documentation:** OpenAPI 3.0, Swagger UI, Redoc (`drf-spectacular`)
+### Docker Setup
 
 1. **Clone the repository:**
     ```bash
     git clone https://github.com/alphaRookie/Cinema-management-system-API.git
+    cd pyproject
     ```
 
 2. **Configure Environment Variables**
     Create a `.env` file in the root directory and add your credentials.
     ```env
+    # --------------- Django setup ---------------
+    SECRET_KEY=your_django_key
     DEBUG=True
-    SECRET_KEY=your_secret_key
-    DB_NAME=cinema_db
+    ALLOWED_HOSTS=127.0.0.1,localhost
+
+    # --------------- DB setup ---------------
+    DB_NAME=your_database_name
     DB_USER=your_name
     DB_PASSWORD=your_password
-    DB_HOST=db
+    DB_HOST=127.0.0.1
     DB_PORT=5432
-    REDIS_HOST=redis
+
+    # --------------- django-redis setup ---------------
+    REDIS_HOST=127.0.0.1
     REDIS_PORT=6379
-    REDIS_PASSWORD=your_redis_password_here
-    STRIPE_PUBLIC_KEY=pk_test_your_key
-    STRIPE_SECRET_KEY=sk_test_your_key
+    REDIS_PASSWORD="" #leave password empty, unless in Production
+
+    # --------------- Stripe payment ---------------
+    # Get the key: Login into Stripe, make sure you are in `Test mode`, and copy the key
+    STRIPE_SECRET_KEY=your_sk_test_key
+    STRIPE_PUBLISHABLE_KEY=your_pk_test_key
     ```
 
-3. **Launch with Docker (Recommended)**
+3. **Launch the Docker**
     This single command builds the images, starts the PostgreSQL database, connects the Redis cache, and launches the Django API.
     ```bash
     docker compose up --build
     ```
     *The API will be available at:* `http://127.0.0.1:8000/`
 
-4. Setup the Database & Admin
+4. **Setup the Database & Admin**
     In a new terminal window, run the migrations and create your admin account inside the running container:
     ```bash
     # Run Migrations
@@ -155,11 +153,33 @@ Before you start, make sure you have the following installed:
     docker compose exec web python manage.py createsuperuser
     ```
 
-### Manual Setup (Without Docker)
+### Local Setup (Without Docker)
 If you prefer to run it natively, ensure you have **PostgreSQL** and **Redis** running on your machine, then:
-    1. **Install dependencies:** `pipenv install && pipenv shell`
-    2. **Apply migrations:** `python manage.py migrate`
-    3. **Start server:** `python manage.py runserver`
+
+1. **Clone the repository**
+    ```bash
+    git clone https://github.com/alphaRookie/Cinema-management-system-API.git
+    cd pyproject
+    ```
+
+2. **Configure Environment Variables**
+    Create a `.env` file in the root directory and add your credentials (Same as above)
+
+3. **Install dependencies** 
+    ```bash
+    pipenv install
+    ```
+
+4. **Apply migrations & Create Admin** 
+    ```bash
+    python manage.py migrate
+    python manage.py createsuperuser
+    ```
+
+5. **Start server** 
+    ```bash
+    python manage.py runserver
+    ```
 
 ---
 
