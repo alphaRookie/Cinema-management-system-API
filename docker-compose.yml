@@ -3,24 +3,23 @@ services:
   web:
     build: . #using my code
     container_name: django-cinema-api
-    restart: unless-stopped # it wont restart if we turn off manually
+    restart: unless-stopped 
     working_dir: /app #Tells Docker which folder is "Home" inside the box (where to run commands)
+    command: python manage.py runserver 0.0.0.0:8000 # This line overrides the Dockerfile CMD for local development (delete in Production)
     volumes:
       - .:/app #Bind Mount: Any change you make in VS Code happens instantly inside the box (Mirroring)
     ports:
       - "8000:8000"
-    environment:
-      - DB_HOST=db #refer to 2nd service
-      - DB_PORT=5432
-      - DB_NAME=cinema_db
-      - DB_USER=alfa
-      - DB_PASSWORD=alfaruqi2005.
-      - REDIS_HOST=redis
-    env_file: #Tells Docker to check my .env (stored Stripe key & Secret key)
+    env_file: #Tells Docker to check my .env (Load all env variables)
       - .env
-    depends_on: #This service need to wait for them
-      - db
-      - redis
+    environment: # this part will override .env only when docker run
+      - DB_HOST=db # in .env it refer to 127.0.0.1 (itself), while in docker must refer to another container
+      - REDIS_HOST=redis 
+    depends_on: 
+      db:
+        condition: service_healthy # Waits for Postgres to be fully ready
+      redis:
+        condition: service_started
 
   # 2nd service: The Postgres Database
   db:
@@ -28,22 +27,28 @@ services:
     container_name: cinema-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: cinema_db
-      POSTGRES_USER: alfa
-      POSTGRES_PASSWORD: alfaruqi2005.
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
       - "5432:5432"
     volumes: # Its like telling the Db container "Take that storage unit we registered and plug it in right here
       - cinema_pgdata:/var/lib/postgresql/data # Named Volume: Keeps the database data safe (even if container deleted)
+    healthcheck: # Checks if Postgres is actually accepting queries
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 
   # 3rd service: Redis (for Seat Locking logic)
   redis:
-    image: redis:5.0-alpine # alpine is like lite version
+    image: redis:7.0-alpine 
     container_name: cinema-redis
     restart: unless-stopped
     ports:
       - "6379:6379"
+    # command: redis-server --requirepass ${REDIS_PASSWORD} # in production
 
 
 # The stuff inside "services:" is a Reference, and the stuff inside "volumes:" is the Actual Storage Tank(this part)
